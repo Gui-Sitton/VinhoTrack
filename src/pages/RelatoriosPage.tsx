@@ -1,13 +1,20 @@
-import { useState } from 'react';
-import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3 } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import {
   producaoSafras,
-  calcularTotais,
-  getAplicacoesPorAno,
-  getAplicacoesPorCategoria,
+  aplicacoesProdutos,
+  AplicacaoProduto,
 } from '@/data/reportData';
 import {
   BarChart,
@@ -27,35 +34,109 @@ import {
 import { cn } from '@/lib/utils';
 
 const COLORS = ['#7c3aed', '#10b981', '#f59e0b', '#ef4444'];
+const ANOS_DISPONIVEIS = [2023, 2024, 2025];
+const CATEGORIAS_DISPONIVEIS: AplicacaoProduto['categoria'][] = ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida'];
 
 export default function RelatoriosPage() {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  
+  // Filtros
+  const [anosSelecionados, setAnosSelecionados] = useState<number[]>([2023, 2024, 2025]);
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<AplicacaoProduto['categoria'][]>([
+    'Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida'
+  ]);
 
   const handleGerarRelatorio = () => {
     setIsGenerating(true);
-    // Simula processamento
     setTimeout(() => {
       setIsGenerating(false);
       setRelatorioGerado(true);
     }, 1500);
   };
 
-  const totais = calcularTotais();
-  const aplicacoesPorAno = getAplicacoesPorAno();
-  const aplicacoesPorCategoria = getAplicacoesPorCategoria();
+  const toggleAno = (ano: number) => {
+    setAnosSelecionados(prev => 
+      prev.includes(ano) 
+        ? prev.filter(a => a !== ano)
+        : [...prev, ano].sort()
+    );
+  };
 
-  const producaoData = producaoSafras.map(s => ({
+  const toggleCategoria = (categoria: AplicacaoProduto['categoria']) => {
+    setCategoriasSelecionadas(prev =>
+      prev.includes(categoria)
+        ? prev.filter(c => c !== categoria)
+        : [...prev, categoria]
+    );
+  };
+
+  const limparFiltros = () => {
+    setAnosSelecionados([2023, 2024, 2025]);
+    setCategoriasSelecionadas(['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida']);
+  };
+
+  // Dados filtrados
+  const dadosFiltrados = useMemo(() => {
+    const producaoFiltrada = producaoSafras.filter(s => anosSelecionados.includes(s.ano));
+    const aplicacoesFiltradas = aplicacoesProdutos.filter(
+      ap => anosSelecionados.includes(ap.ano) && categoriasSelecionadas.includes(ap.categoria)
+    );
+
+    const producaoTotal = producaoFiltrada.reduce((acc, s) => acc + s.producaoTotal, 0);
+    const primeiroAno = producaoFiltrada[0];
+    const ultimoAno = producaoFiltrada[producaoFiltrada.length - 1];
+    const evolucaoPercentual = primeiroAno && ultimoAno && primeiroAno !== ultimoAno
+      ? ((ultimoAno.producaoTotal - primeiroAno.producaoTotal) / primeiroAno.producaoTotal) * 100
+      : 0;
+
+    const aplicacoesPorCategoriaCalc = aplicacoesFiltradas.reduce((acc, ap) => {
+      acc[ap.categoria] = (acc[ap.categoria] || 0) + ap.quantidade;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const produtoMaisAplicado = Object.entries(aplicacoesPorCategoriaCalc)
+      .sort((a, b) => b[1] - a[1])[0] || ['N/A', 0];
+
+    const anoMaiorProdutividade = [...producaoFiltrada]
+      .sort((a, b) => b.producaoMediaPlanta - a.producaoMediaPlanta)[0];
+
+    const aplicacoesPorAno = anosSelecionados.map(ano => {
+      const aplicacoesAno = aplicacoesFiltradas.filter(ap => ap.ano === ano);
+      const total = aplicacoesAno.reduce((acc, ap) => acc + ap.quantidade, 0);
+      return { ano, total };
+    });
+
+    const aplicacoesPorCategoria = categoriasSelecionadas.map(categoria => {
+      const total = aplicacoesFiltradas
+        .filter(ap => ap.categoria === categoria)
+        .reduce((acc, ap) => acc + ap.quantidade, 0);
+      return { categoria, total };
+    }).filter(c => c.total > 0);
+
+    return {
+      producaoFiltrada,
+      aplicacoesFiltradas,
+      producaoTotal,
+      evolucaoPercentual,
+      produtoMaisAplicado,
+      anoMaiorProdutividade,
+      aplicacoesPorAno,
+      aplicacoesPorCategoria,
+    };
+  }, [anosSelecionados, categoriasSelecionadas]);
+
+  const producaoData = dadosFiltrados.producaoFiltrada.map(s => ({
     ano: s.ano.toString(),
     producao: s.producaoTotal,
   }));
 
-  const producaoMediaData = producaoSafras.map(s => ({
+  const producaoMediaData = dadosFiltrados.producaoFiltrada.map(s => ({
     ano: s.ano.toString(),
     media: s.producaoMediaPlanta,
   }));
 
-  const volumeAplicadoData = aplicacoesPorAno.map(a => ({
+  const volumeAplicadoData = dadosFiltrados.aplicacoesPorAno.map(a => ({
     ano: a.ano.toString(),
     volume: a.total,
   }));
@@ -104,6 +185,88 @@ export default function RelatoriosPage() {
           </CardContent>
         </Card>
 
+        {/* Filtros */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Filter className="w-5 h-5 text-primary" />
+                <CardTitle className="font-display text-lg">Filtros do Relatório</CardTitle>
+              </div>
+              {(anosSelecionados.length < 3 || categoriasSelecionadas.length < 4) && (
+                <Button variant="ghost" size="sm" onClick={limparFiltros} className="gap-1">
+                  <X className="w-4 h-4" />
+                  Limpar filtros
+                </Button>
+              )}
+            </div>
+            <CardDescription>Selecione os anos e categorias para personalizar o relatório</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Filtro por Ano */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Anos</p>
+              <div className="flex flex-wrap gap-2">
+                {ANOS_DISPONIVEIS.map(ano => (
+                  <Badge
+                    key={ano}
+                    variant={anosSelecionados.includes(ano) ? 'default' : 'outline'}
+                    className={cn(
+                      'cursor-pointer transition-all hover:scale-105',
+                      anosSelecionados.includes(ano) 
+                        ? 'bg-primary hover:bg-primary/90' 
+                        : 'hover:bg-primary/10'
+                    )}
+                    onClick={() => toggleAno(ano)}
+                  >
+                    {ano}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Filtro por Categoria */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Categorias de Produtos</p>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIAS_DISPONIVEIS.map((categoria, index) => (
+                  <Badge
+                    key={categoria}
+                    variant={categoriasSelecionadas.includes(categoria) ? 'default' : 'outline'}
+                    className={cn(
+                      'cursor-pointer transition-all hover:scale-105',
+                      categoriasSelecionadas.includes(categoria)
+                        ? ''
+                        : 'hover:bg-primary/10'
+                    )}
+                    style={{
+                      backgroundColor: categoriasSelecionadas.includes(categoria) 
+                        ? COLORS[index] 
+                        : undefined,
+                      borderColor: !categoriasSelecionadas.includes(categoria) 
+                        ? COLORS[index] 
+                        : undefined,
+                      color: categoriasSelecionadas.includes(categoria) 
+                        ? 'white' 
+                        : COLORS[index],
+                    }}
+                    onClick={() => toggleCategoria(categoria)}
+                  >
+                    {categoria}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+
+            {/* Resumo dos filtros */}
+            <div className="pt-2 border-t border-border">
+              <p className="text-sm text-muted-foreground">
+                {anosSelecionados.length} ano(s) · {categoriasSelecionadas.length} categoria(s) selecionada(s)
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Conteúdo do Relatório */}
         <div
           className={cn(
@@ -121,7 +284,7 @@ export default function RelatoriosPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Produção Total</p>
-                    <p className="text-2xl font-bold">{totais.producaoTotal.toLocaleString()} kg</p>
+                    <p className="text-2xl font-bold">{dadosFiltrados.producaoTotal.toLocaleString()} kg</p>
                   </div>
                 </div>
               </CardContent>
@@ -136,7 +299,7 @@ export default function RelatoriosPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Evolução</p>
                     <p className="text-2xl font-bold text-green-600">
-                      +{totais.evolucaoPercentual.toFixed(0)}%
+                      {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
                     </p>
                   </div>
                 </div>
@@ -151,7 +314,7 @@ export default function RelatoriosPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Mais Aplicado</p>
-                    <p className="text-lg font-bold">{totais.produtoMaisAplicado[0]}</p>
+                    <p className="text-lg font-bold">{dadosFiltrados.produtoMaisAplicado[0]}</p>
                   </div>
                 </div>
               </CardContent>
@@ -165,7 +328,7 @@ export default function RelatoriosPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Melhor Safra</p>
-                    <p className="text-2xl font-bold">{totais.anoMaiorProdutividade.ano}</p>
+                    <p className="text-2xl font-bold">{dadosFiltrados.anoMaiorProdutividade?.ano || '-'}</p>
                   </div>
                 </div>
               </CardContent>
@@ -245,7 +408,7 @@ export default function RelatoriosPage() {
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
-                      data={aplicacoesPorCategoria}
+                      data={dadosFiltrados.aplicacoesPorCategoria}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -258,8 +421,8 @@ export default function RelatoriosPage() {
                       }
                       labelLine={false}
                     >
-                      {aplicacoesPorCategoria.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      {dadosFiltrados.aplicacoesPorCategoria.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[CATEGORIAS_DISPONIVEIS.indexOf(entry.categoria as any) % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -307,36 +470,46 @@ export default function RelatoriosPage() {
           <Card className="animate-fade-in" style={{ animationDelay: '800ms' }}>
             <CardHeader>
               <CardTitle className="font-display text-lg">Resumo Agronômico</CardTitle>
-              <CardDescription>Análise automática dos dados do período 2023-2025</CardDescription>
+              <CardDescription>
+                Análise automática dos dados do período {anosSelecionados.length > 0 ? `${Math.min(...anosSelecionados)}-${Math.max(...anosSelecionados)}` : 'selecionado'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               <div className="bg-muted/50 rounded-lg p-6 space-y-4">
                 <p className="text-foreground leading-relaxed">
-                  <strong>📊 Produção Total no Período:</strong> A produção acumulada das safras de 2023 a 2025 
-                  totalizou <strong>{totais.producaoTotal.toLocaleString()} kg</strong> de uva Marselan, 
+                  <strong>📊 Produção Total no Período:</strong> A produção acumulada das safras selecionadas 
+                  totalizou <strong>{dadosFiltrados.producaoTotal.toLocaleString()} kg</strong> de uva Marselan, 
                   distribuídos em 50 plantas produtivas.
                 </p>
                 
-                <p className="text-foreground leading-relaxed">
-                  <strong>📈 Evolução da Produtividade:</strong> Observou-se um crescimento de{' '}
-                  <strong className="text-green-600">+{totais.evolucaoPercentual.toFixed(0)}%</strong>{' '}
-                  na produção total entre 2023 e 2025, demonstrando a maturação do vinhedo e a eficácia 
-                  das práticas de manejo adotadas.
-                </p>
+                {dadosFiltrados.producaoFiltrada.length > 1 && (
+                  <p className="text-foreground leading-relaxed">
+                    <strong>📈 Evolução da Produtividade:</strong> Observou-se um crescimento de{' '}
+                    <strong className={dadosFiltrados.evolucaoPercentual >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
+                    </strong>{' '}
+                    na produção total no período selecionado, demonstrando a maturação do vinhedo e a eficácia 
+                    das práticas de manejo adotadas.
+                  </p>
+                )}
 
-                <p className="text-foreground leading-relaxed">
-                  <strong>🏆 Safra de Destaque:</strong> O ano de{' '}
-                  <strong>{totais.anoMaiorProdutividade.ano}</strong> apresentou a maior produtividade 
-                  média por planta, atingindo{' '}
-                  <strong>{totais.anoMaiorProdutividade.producaoMediaPlanta.toFixed(1)} kg/planta</strong>.
-                </p>
+                {dadosFiltrados.anoMaiorProdutividade && (
+                  <p className="text-foreground leading-relaxed">
+                    <strong>🏆 Safra de Destaque:</strong> O ano de{' '}
+                    <strong>{dadosFiltrados.anoMaiorProdutividade.ano}</strong> apresentou a maior produtividade 
+                    média por planta, atingindo{' '}
+                    <strong>{dadosFiltrados.anoMaiorProdutividade.producaoMediaPlanta.toFixed(1)} kg/planta</strong>.
+                  </p>
+                )}
 
-                <p className="text-foreground leading-relaxed">
-                  <strong>🧪 Manejo Fitossanitário:</strong> A categoria de produtos mais aplicada no 
-                  período foi <strong>{totais.produtoMaisAplicado[0]}</strong>, totalizando{' '}
-                  <strong>{totais.produtoMaisAplicado[1].toFixed(1)} kg/L</strong>, seguida por 
-                  aplicações regulares de fertilizantes para manutenção nutricional.
-                </p>
+                {dadosFiltrados.produtoMaisAplicado[0] !== 'N/A' && (
+                  <p className="text-foreground leading-relaxed">
+                    <strong>🧪 Manejo Fitossanitário:</strong> A categoria de produtos mais aplicada no 
+                    período foi <strong>{dadosFiltrados.produtoMaisAplicado[0]}</strong>, totalizando{' '}
+                    <strong>{Number(dadosFiltrados.produtoMaisAplicado[1]).toFixed(1)} kg/L</strong>, seguida por 
+                    aplicações regulares de fertilizantes para manutenção nutricional.
+                  </p>
+                )}
 
                 <div className="border-t border-border pt-4 mt-4">
                   <p className="text-muted-foreground text-sm italic">
