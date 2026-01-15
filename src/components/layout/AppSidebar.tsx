@@ -1,4 +1,4 @@
-import { Grape, Map, List, PlusCircle, Home } from 'lucide-react';
+import { Grape, Map, List, PlusCircle, Home, FileBarChart } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
@@ -6,6 +6,7 @@ const menuItems = [
   { title: 'Início', url: '/', icon: Home },
   { title: 'Mudas', url: '/mudas', icon: List },
   { title: 'Mapa do Vinhedo', url: '/mapa', icon: Map },
+  { title: 'Relatórios', url: '/relatorios', icon: FileBarChart },
   { title: 'Nova Observação', url: '/observacao', icon: PlusCircle },
 ];
 
