@@ -1,21 +1,10 @@
 import { useState, useMemo } from 'react';
-import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X } from 'lucide-react';
+import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import {
-  producaoSafras,
-  aplicacoesProdutos,
-  AplicacaoProduto,
-} from '@/data/reportData';
+import { useReportData, AplicacaoProduto } from '@/hooks/useReportData';
 import {
   BarChart,
   Bar,
@@ -33,19 +22,35 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 
-const COLORS = ['#7c3aed', '#10b981', '#f59e0b', '#ef4444'];
-const ANOS_DISPONIVEIS = [2023, 2024, 2025];
-const CATEGORIAS_DISPONIVEIS: AplicacaoProduto['categoria'][] = ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida'];
+const COLORS = ['#7c3aed', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+const CATEGORIAS_DEFAULT: AplicacaoProduto['categoria'][] = ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida'];
 
 export default function RelatoriosPage() {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
+  const { 
+    producaoSafras, 
+    aplicacoesProdutos, 
+    anosDisponiveis, 
+    categoriasDisponiveis,
+    isLoading,
+    hasData 
+  } = useReportData();
+
   // Filtros
-  const [anosSelecionados, setAnosSelecionados] = useState<number[]>([2023, 2024, 2025]);
-  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<AplicacaoProduto['categoria'][]>([
-    'Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida'
-  ]);
+  const [anosSelecionados, setAnosSelecionados] = useState<number[]>([]);
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState<AplicacaoProduto['categoria'][]>([]);
+
+  // Inicializar filtros quando os dados carregarem
+  useMemo(() => {
+    if (anosDisponiveis.length > 0 && anosSelecionados.length === 0) {
+      setAnosSelecionados(anosDisponiveis);
+    }
+    if (categoriasDisponiveis.length > 0 && categoriasSelecionadas.length === 0) {
+      setCategoriasSelecionadas(categoriasDisponiveis);
+    }
+  }, [anosDisponiveis, categoriasDisponiveis]);
 
   const handleGerarRelatorio = () => {
     setIsGenerating(true);
@@ -72,15 +77,22 @@ export default function RelatoriosPage() {
   };
 
   const limparFiltros = () => {
-    setAnosSelecionados([2023, 2024, 2025]);
-    setCategoriasSelecionadas(['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida']);
+    setAnosSelecionados(anosDisponiveis);
+    setCategoriasSelecionadas(categoriasDisponiveis);
   };
+
+  // Categorias para exibição (usar default se não houver dados)
+  const categoriasParaExibir = categoriasDisponiveis.length > 0 ? categoriasDisponiveis : CATEGORIAS_DEFAULT;
+  const anosParaExibir = anosDisponiveis.length > 0 ? anosDisponiveis : [new Date().getFullYear()];
 
   // Dados filtrados
   const dadosFiltrados = useMemo(() => {
-    const producaoFiltrada = producaoSafras.filter(s => anosSelecionados.includes(s.ano));
+    const anosParaFiltrar = anosSelecionados.length > 0 ? anosSelecionados : anosParaExibir;
+    const categoriasParaFiltrar = categoriasSelecionadas.length > 0 ? categoriasSelecionadas : categoriasParaExibir;
+
+    const producaoFiltrada = producaoSafras.filter(s => anosParaFiltrar.includes(s.ano));
     const aplicacoesFiltradas = aplicacoesProdutos.filter(
-      ap => anosSelecionados.includes(ap.ano) && categoriasSelecionadas.includes(ap.categoria)
+      ap => anosParaFiltrar.includes(ap.ano) && categoriasParaFiltrar.includes(ap.categoria)
     );
 
     const producaoTotal = producaoFiltrada.reduce((acc, s) => acc + s.producaoTotal, 0);
@@ -101,13 +113,13 @@ export default function RelatoriosPage() {
     const anoMaiorProdutividade = [...producaoFiltrada]
       .sort((a, b) => b.producaoMediaPlanta - a.producaoMediaPlanta)[0];
 
-    const aplicacoesPorAno = anosSelecionados.map(ano => {
+    const aplicacoesPorAno = anosParaFiltrar.map(ano => {
       const aplicacoesAno = aplicacoesFiltradas.filter(ap => ap.ano === ano);
       const total = aplicacoesAno.reduce((acc, ap) => acc + ap.quantidade, 0);
       return { ano, total };
     });
 
-    const aplicacoesPorCategoria = categoriasSelecionadas.map(categoria => {
+    const aplicacoesPorCategoria = categoriasParaFiltrar.map(categoria => {
       const total = aplicacoesFiltradas
         .filter(ap => ap.categoria === categoria)
         .reduce((acc, ap) => acc + ap.quantidade, 0);
@@ -124,7 +136,7 @@ export default function RelatoriosPage() {
       aplicacoesPorAno,
       aplicacoesPorCategoria,
     };
-  }, [anosSelecionados, categoriasSelecionadas]);
+  }, [anosSelecionados, categoriasSelecionadas, producaoSafras, aplicacoesProdutos, anosParaExibir, categoriasParaExibir]);
 
   const producaoData = dadosFiltrados.producaoFiltrada.map(s => ({
     ano: s.ano.toString(),
@@ -152,126 +164,146 @@ export default function RelatoriosPage() {
           </p>
         </div>
 
+        {/* Loading State */}
+        {isLoading && (
+          <Card>
+            <CardContent className="py-12 flex flex-col items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Carregando dados...</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Botão Principal */}
-        <Card className="border-2 border-dashed border-primary/30 bg-primary/5">
-          <CardContent className="py-12 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <FileBarChart className="w-8 h-8 text-primary" />
-            </div>
-            <h2 className="font-display text-xl font-semibold mb-2">
-              Relatório Agronômico Completo
-            </h2>
-            <p className="text-muted-foreground mb-6 max-w-md">
-              Processe os dados de produção, aplicações e desenvolvimento vegetativo dos últimos 3 anos.
-            </p>
-            <Button
-              size="lg"
-              onClick={handleGerarRelatorio}
-              disabled={isGenerating}
-              className="gap-2"
-            >
-              {isGenerating ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  Processando...
-                </>
-              ) : (
-                <>
-                  <BarChart3 className="w-5 h-5" />
-                  Gerar Relatório Agronômico
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+        {!isLoading && (
+          <Card className="border-2 border-dashed border-primary/30 bg-primary/5">
+            <CardContent className="py-12 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                {hasData ? (
+                  <FileBarChart className="w-8 h-8 text-primary" />
+                ) : (
+                  <Database className="w-8 h-8 text-muted-foreground" />
+                )}
+              </div>
+              <h2 className="font-display text-xl font-semibold mb-2">
+                {hasData ? 'Relatório Agronômico Completo' : 'Sem Dados de Produção'}
+              </h2>
+              <p className="text-muted-foreground mb-6 max-w-md">
+                {hasData 
+                  ? 'Processe os dados de produção, aplicações e desenvolvimento vegetativo.'
+                  : 'Não há dados de produção ou aplicações cadastrados. Cadastre safras e aplicações para gerar relatórios.'}
+              </p>
+              <Button
+                size="lg"
+                onClick={handleGerarRelatorio}
+                disabled={isGenerating || !hasData}
+                className="gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <BarChart3 className="w-5 h-5" />
+                    Gerar Relatório Agronômico
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filtros */}
-        <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-primary" />
-                <CardTitle className="font-display text-lg">Filtros do Relatório</CardTitle>
+        {!isLoading && hasData && (
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-primary" />
+                  <CardTitle className="font-display text-lg">Filtros do Relatório</CardTitle>
+                </div>
+                {(anosSelecionados.length < anosParaExibir.length || categoriasSelecionadas.length < categoriasParaExibir.length) && (
+                  <Button variant="ghost" size="sm" onClick={limparFiltros} className="gap-1">
+                    <X className="w-4 h-4" />
+                    Limpar filtros
+                  </Button>
+                )}
               </div>
-              {(anosSelecionados.length < 3 || categoriasSelecionadas.length < 4) && (
-                <Button variant="ghost" size="sm" onClick={limparFiltros} className="gap-1">
-                  <X className="w-4 h-4" />
-                  Limpar filtros
-                </Button>
-              )}
-            </div>
-            <CardDescription>Selecione os anos e categorias para personalizar o relatório</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Filtro por Ano */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">Anos</p>
-              <div className="flex flex-wrap gap-2">
-                {ANOS_DISPONIVEIS.map(ano => (
-                  <Badge
-                    key={ano}
-                    variant={anosSelecionados.includes(ano) ? 'default' : 'outline'}
-                    className={cn(
-                      'cursor-pointer transition-all hover:scale-105',
-                      anosSelecionados.includes(ano) 
-                        ? 'bg-primary hover:bg-primary/90' 
-                        : 'hover:bg-primary/10'
-                    )}
-                    onClick={() => toggleAno(ano)}
-                  >
-                    {ano}
-                  </Badge>
-                ))}
+              <CardDescription>Selecione os anos e categorias para personalizar o relatório</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Filtro por Ano */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Anos</p>
+                <div className="flex flex-wrap gap-2">
+                  {anosParaExibir.map(ano => (
+                    <Badge
+                      key={ano}
+                      variant={anosSelecionados.includes(ano) ? 'default' : 'outline'}
+                      className={cn(
+                        'cursor-pointer transition-all hover:scale-105',
+                        anosSelecionados.includes(ano) 
+                          ? 'bg-primary hover:bg-primary/90' 
+                          : 'hover:bg-primary/10'
+                      )}
+                      onClick={() => toggleAno(ano)}
+                    >
+                      {ano}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Filtro por Categoria */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">Categorias de Produtos</p>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIAS_DISPONIVEIS.map((categoria, index) => (
-                  <Badge
-                    key={categoria}
-                    variant={categoriasSelecionadas.includes(categoria) ? 'default' : 'outline'}
-                    className={cn(
-                      'cursor-pointer transition-all hover:scale-105',
-                      categoriasSelecionadas.includes(categoria)
-                        ? ''
-                        : 'hover:bg-primary/10'
-                    )}
-                    style={{
-                      backgroundColor: categoriasSelecionadas.includes(categoria) 
-                        ? COLORS[index] 
-                        : undefined,
-                      borderColor: !categoriasSelecionadas.includes(categoria) 
-                        ? COLORS[index] 
-                        : undefined,
-                      color: categoriasSelecionadas.includes(categoria) 
-                        ? 'white' 
-                        : COLORS[index],
-                    }}
-                    onClick={() => toggleCategoria(categoria)}
-                  >
-                    {categoria}
-                  </Badge>
-                ))}
+              {/* Filtro por Categoria */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Categorias de Produtos</p>
+                <div className="flex flex-wrap gap-2">
+                  {categoriasParaExibir.map((categoria, index) => (
+                    <Badge
+                      key={categoria}
+                      variant={categoriasSelecionadas.includes(categoria) ? 'default' : 'outline'}
+                      className={cn(
+                        'cursor-pointer transition-all hover:scale-105',
+                        categoriasSelecionadas.includes(categoria)
+                          ? ''
+                          : 'hover:bg-primary/10'
+                      )}
+                      style={{
+                        backgroundColor: categoriasSelecionadas.includes(categoria) 
+                          ? COLORS[index % COLORS.length] 
+                          : undefined,
+                        borderColor: !categoriasSelecionadas.includes(categoria) 
+                          ? COLORS[index % COLORS.length] 
+                          : undefined,
+                        color: categoriasSelecionadas.includes(categoria) 
+                          ? 'white' 
+                          : COLORS[index % COLORS.length],
+                      }}
+                      onClick={() => toggleCategoria(categoria)}
+                    >
+                      {categoria}
+                    </Badge>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Resumo dos filtros */}
-            <div className="pt-2 border-t border-border">
-              <p className="text-sm text-muted-foreground">
-                {anosSelecionados.length} ano(s) · {categoriasSelecionadas.length} categoria(s) selecionada(s)
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+              {/* Resumo dos filtros */}
+              <div className="pt-2 border-t border-border">
+                <p className="text-sm text-muted-foreground">
+                  {anosSelecionados.length} ano(s) · {categoriasSelecionadas.length} categoria(s) selecionada(s)
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Conteúdo do Relatório */}
         <div
           className={cn(
             'space-y-6 transition-all duration-500',
-            relatorioGerado ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none h-0 overflow-hidden'
+            relatorioGerado && hasData ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none h-0 overflow-hidden'
           )}
         >
           {/* Indicadores Rápidos */}
@@ -344,22 +376,28 @@ export default function RelatoriosPage() {
                 <CardDescription>Total de produção em kg por safra</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={producaoData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="ano" className="text-sm" />
-                    <YAxis className="text-sm" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                      formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Produção']}
-                    />
-                    <Bar dataKey="producao" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {producaoData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={producaoData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="ano" className="text-sm" />
+                      <YAxis className="text-sm" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Produção']}
+                      />
+                      <Bar dataKey="producao" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                    Sem dados de produção cadastrados
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -370,28 +408,34 @@ export default function RelatoriosPage() {
                 <CardDescription>Evolução da produtividade em kg/planta</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={producaoMediaData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="ano" className="text-sm" />
-                    <YAxis className="text-sm" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                      formatter={(value: number) => [`${value.toFixed(1)} kg/planta`, 'Média']}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="media"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={3}
-                      dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                {producaoMediaData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={producaoMediaData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="ano" className="text-sm" />
+                      <YAxis className="text-sm" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: number) => [`${value.toFixed(1)} kg/planta`, 'Média']}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="media"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={3}
+                        dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                    Sem dados de produção cadastrados
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -405,37 +449,43 @@ export default function RelatoriosPage() {
                 <CardDescription>Distribuição de produtos aplicados</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <PieChart>
-                    <Pie
-                      data={dadosFiltrados.aplicacoesPorCategoria}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="total"
-                      nameKey="categoria"
-                      label={({ categoria, percent }) =>
-                        `${categoria} ${(percent * 100).toFixed(0)}%`
-                      }
-                      labelLine={false}
-                    >
-                      {dadosFiltrados.aplicacoesPorCategoria.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[CATEGORIAS_DISPONIVEIS.indexOf(entry.categoria as any) % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                      formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Quantidade']}
-                    />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+                {dadosFiltrados.aplicacoesPorCategoria.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <PieChart>
+                      <Pie
+                        data={dadosFiltrados.aplicacoesPorCategoria}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={2}
+                        dataKey="total"
+                        nameKey="categoria"
+                        label={({ categoria, percent }) =>
+                          `${categoria} ${(percent * 100).toFixed(0)}%`
+                        }
+                        labelLine={false}
+                      >
+                        {dadosFiltrados.aplicacoesPorCategoria.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Quantidade']}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                    Sem dados de aplicações cadastrados
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -446,22 +496,28 @@ export default function RelatoriosPage() {
                 <CardDescription>Total de produtos aplicados (kg + L)</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={volumeAplicadoData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="ano" className="text-sm" />
-                    <YAxis className="text-sm" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                      }}
-                      formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Volume']}
-                    />
-                    <Bar dataKey="volume" fill="#10b981" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {volumeAplicadoData.some(d => d.volume > 0) ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={volumeAplicadoData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="ano" className="text-sm" />
+                      <YAxis className="text-sm" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                        formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Volume']}
+                      />
+                      <Bar dataKey="volume" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                    Sem dados de aplicações cadastrados
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -476,29 +532,35 @@ export default function RelatoriosPage() {
             </CardHeader>
             <CardContent className="prose prose-sm max-w-none">
               <div className="bg-muted/50 rounded-lg p-6 space-y-4">
-                <p className="text-foreground leading-relaxed">
-                  <strong>📊 Produção Total no Período:</strong> A produção acumulada das safras selecionadas 
-                  totalizou <strong>{dadosFiltrados.producaoTotal.toLocaleString()} kg</strong> de uva Marselan, 
-                  distribuídos em 50 plantas produtivas.
-                </p>
-                
-                {dadosFiltrados.producaoFiltrada.length > 1 && (
-                  <p className="text-foreground leading-relaxed">
-                    <strong>📈 Evolução da Produtividade:</strong> Observou-se um crescimento de{' '}
-                    <strong className={dadosFiltrados.evolucaoPercentual >= 0 ? 'text-green-600' : 'text-red-600'}>
-                      {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
-                    </strong>{' '}
-                    na produção total no período selecionado, demonstrando a maturação do vinhedo e a eficácia 
-                    das práticas de manejo adotadas.
-                  </p>
-                )}
+                {dadosFiltrados.producaoTotal > 0 ? (
+                  <>
+                    <p className="text-foreground leading-relaxed">
+                      <strong>📊 Produção Total no Período:</strong> A produção acumulada das safras selecionadas 
+                      totalizou <strong>{dadosFiltrados.producaoTotal.toLocaleString()} kg</strong> de uva.
+                    </p>
+                    
+                    {dadosFiltrados.producaoFiltrada.length > 1 && (
+                      <p className="text-foreground leading-relaxed">
+                        <strong>📈 Evolução da Produtividade:</strong> Observou-se um crescimento de{' '}
+                        <strong className={dadosFiltrados.evolucaoPercentual >= 0 ? 'text-green-600' : 'text-red-600'}>
+                          {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
+                        </strong>{' '}
+                        na produção total no período selecionado.
+                      </p>
+                    )}
 
-                {dadosFiltrados.anoMaiorProdutividade && (
-                  <p className="text-foreground leading-relaxed">
-                    <strong>🏆 Safra de Destaque:</strong> O ano de{' '}
-                    <strong>{dadosFiltrados.anoMaiorProdutividade.ano}</strong> apresentou a maior produtividade 
-                    média por planta, atingindo{' '}
-                    <strong>{dadosFiltrados.anoMaiorProdutividade.producaoMediaPlanta.toFixed(1)} kg/planta</strong>.
+                    {dadosFiltrados.anoMaiorProdutividade && (
+                      <p className="text-foreground leading-relaxed">
+                        <strong>🏆 Safra de Destaque:</strong> O ano de{' '}
+                        <strong>{dadosFiltrados.anoMaiorProdutividade.ano}</strong> apresentou a maior produtividade 
+                        média por planta, atingindo{' '}
+                        <strong>{dadosFiltrados.anoMaiorProdutividade.producaoMediaPlanta.toFixed(1)} kg/planta</strong>.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-muted-foreground leading-relaxed">
+                    Não há dados de produção cadastrados para o período selecionado.
                   </p>
                 )}
 
@@ -506,15 +568,13 @@ export default function RelatoriosPage() {
                   <p className="text-foreground leading-relaxed">
                     <strong>🧪 Manejo Fitossanitário:</strong> A categoria de produtos mais aplicada no 
                     período foi <strong>{dadosFiltrados.produtoMaisAplicado[0]}</strong>, totalizando{' '}
-                    <strong>{Number(dadosFiltrados.produtoMaisAplicado[1]).toFixed(1)} kg/L</strong>, seguida por 
-                    aplicações regulares de fertilizantes para manutenção nutricional.
+                    <strong>{Number(dadosFiltrados.produtoMaisAplicado[1]).toFixed(1)} kg/L</strong>.
                   </p>
                 )}
 
                 <div className="border-t border-border pt-4 mt-4">
                   <p className="text-muted-foreground text-sm italic">
-                    * Relatório gerado automaticamente com base nos dados registrados. 
-                    Para análises mais detalhadas, consulte o histórico individual de cada muda.
+                    * Relatório gerado automaticamente com base nos dados registrados no banco de dados.
                   </p>
                 </div>
               </div>
