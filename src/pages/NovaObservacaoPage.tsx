@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { mudas, fasesFenologicas, getMudaById } from '@/data/mockData';
+import { useMudas, useMudaById, fasesFenologicas } from '@/hooks/useMudas';
+import { useCreateObservacao } from '@/hooks/useObservacoes';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ArrowLeft, CheckCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function NovaObservacaoPage() {
@@ -34,10 +35,14 @@ export default function NovaObservacaoPage() {
 
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { data: mudas, isLoading: mudasLoading } = useMudas();
+  const { data: selectedMuda } = useMudaById(formData.mudaId || undefined);
+  const createObservacao = useCreateObservacao();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.mudaId || !formData.faseFenologica || !formData.alturaPlanta) {
+    if (!formData.mudaId || !formData.faseFenologica) {
       toast({
         title: 'Campos obrigatórios',
         description: 'Por favor, preencha todos os campos obrigatórios.',
@@ -46,15 +51,28 @@ export default function NovaObservacaoPage() {
       return;
     }
 
-    // Simular salvamento (apenas local, não persistente)
-    setSubmitted(true);
-    toast({
-      title: 'Observação registrada!',
-      description: 'A observação foi adicionada com sucesso (apenas em memória).',
-    });
-  };
+    try {
+      await createObservacao.mutateAsync({
+        muda_id: formData.mudaId,
+        data: formData.data,
+        fase_fenologica: formData.faseFenologica,
+        altura_cm: formData.alturaPlanta ? Number(formData.alturaPlanta) : null,
+        observacoes: formData.observacoes || null,
+      });
 
-  const selectedMuda = formData.mudaId ? getMudaById(formData.mudaId) : undefined;
+      setSubmitted(true);
+      toast({
+        title: 'Observação registrada!',
+        description: 'A observação foi salva com sucesso.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Erro ao salvar',
+        description: 'Não foi possível salvar a observação. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   if (submitted) {
     return (
@@ -124,14 +142,15 @@ export default function NovaObservacaoPage() {
                   onValueChange={(value) =>
                     setFormData({ ...formData, mudaId: value })
                   }
+                  disabled={mudasLoading}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma muda" />
+                    <SelectValue placeholder={mudasLoading ? "Carregando..." : "Selecione uma muda"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {mudas.map((muda) => (
+                    {(mudas || []).map((muda) => (
                       <SelectItem key={muda.id} value={muda.id}>
-                        {muda.codigo} - {muda.linha}/{muda.plantaNaLinha}
+                        {muda.codigo} - L{String(muda.linha).padStart(2, '0')}/P{String(muda.planta_na_linha).padStart(2, '0')}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -175,7 +194,7 @@ export default function NovaObservacaoPage() {
 
               {/* Altura da Planta */}
               <div className="space-y-2">
-                <Label htmlFor="altura">Altura da Planta (cm) *</Label>
+                <Label htmlFor="altura">Altura da Planta (cm)</Label>
                 <Input
                   id="altura"
                   type="number"
@@ -206,16 +225,20 @@ export default function NovaObservacaoPage() {
                 <Button type="button" variant="outline" onClick={() => navigate(-1)}>
                   Cancelar
                 </Button>
-                <Button type="submit">Registrar Observação</Button>
+                <Button type="submit" disabled={createObservacao.isPending}>
+                  {createObservacao.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Registrar Observação'
+                  )}
+                </Button>
               </div>
             </form>
           </CardContent>
         </Card>
-
-        {/* Info */}
-        <p className="text-sm text-muted-foreground mt-6 max-w-2xl">
-          ⚠️ Esta é uma demonstração. As observações são salvas apenas em memória e serão perdidas ao recarregar a página.
-        </p>
       </div>
     </MainLayout>
   );

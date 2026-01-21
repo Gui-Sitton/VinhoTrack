@@ -1,18 +1,35 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { getMudaById } from '@/data/mockData';
+import { useMudaById, MudaStatus } from '@/hooks/useMudas';
 import { StatusBadge } from '@/components/mudas/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MapPin, Calendar, Leaf, Ruler, FileText } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Leaf, Ruler, FileText, Loader2 } from 'lucide-react';
+
+const statusDisplayMap: Record<MudaStatus, string> = {
+  ativa: 'Ativa',
+  atencao: 'Atenção',
+  falha: 'Falha',
+  substituida: 'Substituída',
+};
 
 export default function MudaDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const muda = id ? getMudaById(id) : undefined;
+  const { data: muda, isLoading, error } = useMudaById(id);
 
-  if (!muda) {
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="p-8 flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!muda || error) {
     return (
       <MainLayout>
         <div className="p-8 text-center">
@@ -24,6 +41,8 @@ export default function MudaDetailPage() {
       </MainLayout>
     );
   }
+
+  const talhao = muda.talhao;
 
   return (
     <MainLayout>
@@ -45,9 +64,9 @@ export default function MudaDetailPage() {
               <h1 className="font-display text-3xl font-bold text-foreground">
                 {muda.codigo}
               </h1>
-              <StatusBadge status={muda.status} />
+              <StatusBadge status={statusDisplayMap[muda.status || 'ativa'] as any} />
             </div>
-            <p className="text-muted-foreground">{muda.variedade}</p>
+            <p className="text-muted-foreground">{talhao?.variedade || 'Variedade não definida'}</p>
           </div>
           <Button onClick={() => navigate(`/observacao?muda=${muda.id}`)}>
             Nova Observação
@@ -65,15 +84,15 @@ export default function MudaDetailPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Talhão</span>
-                  <span className="font-medium">{muda.talhao}</span>
+                  <span className="font-medium">{talhao?.codigo || '-'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Linha</span>
-                  <span className="font-medium">{muda.linha}</span>
+                  <span className="font-medium">L{String(muda.linha).padStart(2, '0')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Planta</span>
-                  <span className="font-medium">{muda.plantaNaLinha}</span>
+                  <span className="font-medium">P{String(muda.planta_na_linha).padStart(2, '0')}</span>
                 </div>
               </div>
             </CardContent>
@@ -86,11 +105,11 @@ export default function MudaDetailPage() {
                 <h3 className="font-semibold">Data de Plantio</h3>
               </div>
               <p className="text-2xl font-bold">
-                {new Date(muda.dataPlantio).toLocaleDateString('pt-BR', {
+                {talhao?.data_plantio ? new Date(talhao.data_plantio).toLocaleDateString('pt-BR', {
                   day: '2-digit',
                   month: 'long',
                   year: 'numeric',
-                })}
+                }) : 'Não definida'}
               </p>
             </CardContent>
           </Card>
@@ -101,7 +120,7 @@ export default function MudaDetailPage() {
                 <FileText className="w-5 h-5 text-primary" />
                 <h3 className="font-semibold">Observações</h3>
               </div>
-              <p className="text-2xl font-bold">{muda.observacoes.length}</p>
+              <p className="text-2xl font-bold">{muda.observacoes?.length || 0}</p>
               <p className="text-sm text-muted-foreground">registradas</p>
             </CardContent>
           </Card>
@@ -113,13 +132,13 @@ export default function MudaDetailPage() {
             <CardTitle className="font-display">Histórico de Observações</CardTitle>
           </CardHeader>
           <CardContent>
-            {muda.observacoes.length === 0 ? (
+            {!muda.observacoes || muda.observacoes.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
                 Nenhuma observação registrada para esta muda.
               </p>
             ) : (
               <div className="space-y-6">
-                {muda.observacoes.map((obs, index) => (
+                {muda.observacoes.map((obs) => (
                   <div
                     key={obs.id}
                     className="relative pl-6 pb-6 border-l-2 border-border last:pb-0"
@@ -133,14 +152,18 @@ export default function MudaDetailPage() {
                         </span>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
                           <Leaf className="w-3 h-3 mr-1" />
-                          {obs.faseFenologica}
+                          {obs.fase_fenologica}
                         </span>
-                        <span className="inline-flex items-center text-xs text-muted-foreground">
-                          <Ruler className="w-3 h-3 mr-1" />
-                          {obs.alturaPlanta} cm
-                        </span>
+                        {obs.altura_cm && (
+                          <span className="inline-flex items-center text-xs text-muted-foreground">
+                            <Ruler className="w-3 h-3 mr-1" />
+                            {obs.altura_cm} cm
+                          </span>
+                        )}
                       </div>
-                      <p className="text-sm text-foreground">{obs.observacoes}</p>
+                      {obs.observacoes && (
+                        <p className="text-sm text-foreground">{obs.observacoes}</p>
+                      )}
                     </div>
                   </div>
                 ))}

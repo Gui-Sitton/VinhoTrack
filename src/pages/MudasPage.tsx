@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { MudaCard } from '@/components/mudas/MudaCard';
-import { mudas, getLinhasUnicas } from '@/data/mockData';
+import { useMudas, useLinhasUnicas } from '@/hooks/useMudas';
 import {
   Select,
   SelectContent,
@@ -10,20 +10,21 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 
 export default function MudasPage() {
   const [linhaFiltro, setLinhaFiltro] = useState<string>('todas');
   const [busca, setBusca] = useState('');
 
-  const linhas = getLinhasUnicas();
+  const { data: mudas, isLoading: mudasLoading } = useMudas();
+  const { data: linhas, isLoading: linhasLoading } = useLinhasUnicas();
 
-  const mudasFiltradas = mudas.filter((muda) => {
-    const matchLinha = linhaFiltro === 'todas' || muda.linha === linhaFiltro;
+  const mudasFiltradas = (mudas || []).filter((muda) => {
+    const matchLinha = linhaFiltro === 'todas' || muda.linha === Number(linhaFiltro);
     const matchBusca =
       busca === '' ||
       muda.codigo.toLowerCase().includes(busca.toLowerCase()) ||
-      muda.status.toLowerCase().includes(busca.toLowerCase());
+      (muda.status && muda.status.toLowerCase().includes(busca.toLowerCase()));
     return matchLinha && matchBusca;
   });
 
@@ -52,15 +53,15 @@ export default function MudasPage() {
             />
           </div>
 
-          <Select value={linhaFiltro} onValueChange={setLinhaFiltro}>
+          <Select value={linhaFiltro} onValueChange={setLinhaFiltro} disabled={linhasLoading}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filtrar por linha" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todas">Todas as linhas</SelectItem>
-              {linhas.map((linha) => (
-                <SelectItem key={linha} value={linha}>
-                  {linha}
+              {(linhas || []).map((linha) => (
+                <SelectItem key={linha} value={String(linha)}>
+                  Linha {linha}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -69,22 +70,35 @@ export default function MudasPage() {
 
         {/* Results count */}
         <p className="text-sm text-muted-foreground mb-4">
-          Exibindo {mudasFiltradas.length} de {mudas.length} mudas
+          {mudasLoading ? (
+            'Carregando...'
+          ) : (
+            `Exibindo ${mudasFiltradas.length} de ${mudas?.length || 0} mudas`
+          )}
         </p>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {mudasFiltradas.map((muda, index) => (
-            <div key={muda.id} style={{ animationDelay: `${index * 50}ms` }}>
-              <MudaCard muda={muda} />
-            </div>
-          ))}
-        </div>
-
-        {mudasFiltradas.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Nenhuma muda encontrada com os filtros aplicados.</p>
+        {/* Loading State */}
+        {mudasLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
+        ) : (
+          <>
+            {/* Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {mudasFiltradas.map((muda, index) => (
+                <div key={muda.id} style={{ animationDelay: `${index * 50}ms` }}>
+                  <MudaCard muda={muda} />
+                </div>
+              ))}
+            </div>
+
+            {mudasFiltradas.length === 0 && !mudasLoading && (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Nenhuma muda encontrada com os filtros aplicados.</p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </MainLayout>
