@@ -103,7 +103,8 @@ export function useMudas() {
         .select('id, codigo, linha, planta_na_linha, status, talhao_id, latitude, longitude, created_at')
         .in('talhao_id', talhaoIds)
         .order('linha')
-        .order('planta_na_linha');
+        .order('planta_na_linha')
+        .range(0, 1999); // Supabase default limit is 1000, increase to fetch all
 
       if (error) {
         console.error('[useMudas] Erro ao buscar mudas:', error.message, error.code);
