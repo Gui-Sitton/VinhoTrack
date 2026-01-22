@@ -9,7 +9,10 @@ interface NovaObservacao {
   observacoes: string | null;
 }
 
-// Hook para criar uma nova observação
+/**
+ * Hook para criar uma nova observação de muda.
+ * RLS: acesso via muda_id -> mudas.talhao_id -> talhoes.user_id = auth.uid()
+ */
 export function useCreateObservacao() {
   const queryClient = useQueryClient();
 
@@ -17,11 +20,21 @@ export function useCreateObservacao() {
     mutationFn: async (observacao: NovaObservacao) => {
       const { data, error } = await supabase
         .from('observacoes_mudas')
-        .insert(observacao)
-        .select()
+        .insert({
+          muda_id: observacao.muda_id,
+          data: observacao.data,
+          fase_fenologica: observacao.fase_fenologica,
+          altura_cm: observacao.altura_cm,
+          observacoes: observacao.observacoes,
+        })
+        .select('id, muda_id, data, fase_fenologica, altura_cm, observacoes, created_at')
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useCreateObservacao] Erro ao criar observação:', error.message, error.code);
+        throw error;
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {
