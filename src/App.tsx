@@ -9,6 +9,7 @@ import MudaDetailPage from "./pages/MudaDetailPage";
 import NovaObservacaoPage from "./pages/NovaObservacaoPage";
 import MapaVinhedoPage from "./pages/MapaVinhedoPage";
 import RelatoriosPage from "./pages/RelatoriosPage";
+import AplicacoesPage from "./pages/AplicacoesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/mudas/:id" element={<MudaDetailPage />} />
           <Route path="/observacao" element={<NovaObservacaoPage />} />
           <Route path="/mapa" element={<MapaVinhedoPage />} />
+          <Route path="/aplicacoes" element={<AplicacoesPage />} />
           <Route path="/relatorios" element={<RelatoriosPage />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
