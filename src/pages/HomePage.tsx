@@ -148,7 +148,11 @@ export default function HomePage() {
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">Data de Plantio</p>
                   <p className="font-semibold">
-                    {new Date(talhao.data_plantio).toLocaleDateString('pt-BR')}
+                    {new Date(talhao.data_plantio).toLocaleDateString('pt-BR', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    })}
                   </p>
                 </div>
               </div>

@@ -63,6 +63,7 @@ export type Database = {
         Row: {
           codigo: string
           created_at: string | null
+          data_plantio: string | null
           id: string
           latitude: number | null
           linha: number
@@ -74,6 +75,7 @@ export type Database = {
         Insert: {
           codigo: string
           created_at?: string | null
+          data_plantio?: string | null
           id?: string
           latitude?: number | null
           linha: number
@@ -85,6 +87,7 @@ export type Database = {
         Update: {
           codigo?: string
           created_at?: string | null
+          data_plantio?: string | null
           id?: string
           latitude?: number | null
           linha?: number
@@ -292,6 +295,7 @@ export type Database = {
           id: string
           ingrediente_ativo: string | null
           nome: string
+          observacao: string | null
           tipo: Database["public"]["Enums"]["produto_tipo"]
           unidade: string
         }
@@ -300,6 +304,7 @@ export type Database = {
           id?: string
           ingrediente_ativo?: string | null
           nome: string
+          observacao?: string | null
           tipo: Database["public"]["Enums"]["produto_tipo"]
           unidade: string
         }
@@ -308,6 +313,7 @@ export type Database = {
           id?: string
           ingrediente_ativo?: string | null
           nome?: string
+          observacao?: string | null
           tipo?: Database["public"]["Enums"]["produto_tipo"]
           unidade?: string
         }
@@ -408,6 +414,7 @@ export type Database = {
         | "corretivo"
         | "inseticida"
         | "outro"
+        | "adjuvante"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -542,6 +549,7 @@ export const Constants = {
         "corretivo",
         "inseticida",
         "outro",
+        "adjuvante",
       ],
     },
   },
