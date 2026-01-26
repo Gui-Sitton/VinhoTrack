@@ -1,6 +1,9 @@
-import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets } from 'lucide-react';
+import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets, LogOut } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMudasStats, useTalhoes } from '@/hooks/useMudas';
+import { Button } from '@/components/ui/button';
 
 const menuItems = [
   { title: 'Início', url: '/', icon: Home },
@@ -13,6 +16,11 @@ const menuItems = [
 
 export function AppSidebar() {
   const location = useLocation();
+  const { user, signOut } = useAuth();
+  const { data: stats } = useMudasStats();
+  const { data: talhoes } = useTalhoes();
+
+  const variedade = talhoes?.[0]?.variedade || 'N/A';
 
   return (
     <aside className="w-64 bg-sidebar border-r border-sidebar-border min-h-screen flex flex-col">
@@ -56,13 +64,23 @@ export function AppSidebar() {
         </ul>
       </nav>
 
-      {/* Footer */}
+      {/* Stats Footer */}
       <div className="p-4 border-t border-sidebar-border">
-        <div className="bg-accent/50 rounded-lg p-4">
+        <div className="bg-accent/50 rounded-lg p-4 mb-3">
           <p className="text-xs text-muted-foreground mb-1">Variedade</p>
-          <p className="text-sm font-semibold text-foreground">Marselan</p>
+          <p className="text-sm font-semibold text-foreground">{variedade}</p>
           <p className="text-xs text-muted-foreground mt-2">Total de Mudas</p>
-          <p className="text-sm font-semibold text-foreground">50 unidades</p>
+          <p className="text-sm font-semibold text-foreground">{stats?.total || 0} unidades</p>
+        </div>
+
+        {/* User & Logout */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground truncate max-w-[140px]" title={user?.email || ''}>
+            {user?.email}
+          </span>
+          <Button variant="ghost" size="sm" onClick={signOut} className="h-8 w-8 p-0">
+            <LogOut className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </aside>
