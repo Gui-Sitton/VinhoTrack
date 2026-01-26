@@ -18,10 +18,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    console.log('[ProtectedRoute] Usuário não autenticado, redirecionando para /auth');
     return <Navigate to="/auth" replace />;
   }
 
-  console.log('[ProtectedRoute] Usuário autenticado:', user.id);
   return <>{children}</>;
 }

@@ -22,7 +22,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('[Auth] Estado alterado:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
@@ -31,7 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('[Auth] Sessão restaurada:', session?.user?.id);
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
@@ -43,7 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      console.error('[Auth] Erro no login:', error.message);
       return { error };
     }
     return { error: null };
@@ -57,14 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { emailRedirectTo: redirectUrl }
     });
     if (error) {
-      console.error('[Auth] Erro no cadastro:', error.message);
       return { error };
     }
     return { error: null };
   };
 
   const signOut = async () => {
-    console.log('[Auth] Logout');
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
