@@ -47,7 +47,11 @@ export function MudaCard({ muda }: MudaCardProps) {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="w-4 h-4" />
               <span>
-                Plantio: {new Date(muda.talhao.data_plantio).toLocaleDateString('pt-BR')}
+                Plantio: {new Date(muda.talhao.data_plantio).toLocaleDateString('pt-BR', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
               </span>
             </div>
           )}
