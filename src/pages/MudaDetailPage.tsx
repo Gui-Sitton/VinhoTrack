@@ -102,7 +102,7 @@ export default function MudaDetailPage() {
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-3">
                 <Calendar className="w-5 h-5 text-primary" />
-                <h3 className="font-semibold">Data de Plantio</h3>
+                <h3 className="font-semibold">Data de Plantio & Idade</h3>
               </div>
               <p className="text-2xl font-bold">
                 {talhao?.data_plantio ? new Date(talhao.data_plantio + 'T12:00:00').toLocaleDateString('pt-BR', {
@@ -111,6 +111,26 @@ export default function MudaDetailPage() {
                   year: 'numeric',
                 }) : 'Não definida'}
               </p>
+              {talhao?.data_plantio && (() => {
+                const plantingDate = new Date(talhao.data_plantio + 'T12:00:00');
+                const today = new Date();
+                const diffMs = today.getTime() - plantingDate.getTime();
+                const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                
+                if (totalDays < 0) return <p className="text-sm text-muted-foreground mt-2">Plantio futuro</p>;
+                
+                const years = Math.floor(totalDays / 365);
+                const months = Math.floor((totalDays % 365) / 30);
+                const days = totalDays % 30;
+                
+                let ageText = '';
+                if (years > 0) ageText += `${years} ano${years > 1 ? 's' : ''}`;
+                if (months > 0) ageText += `${ageText ? ', ' : ''}${months} ${months > 1 ? 'meses' : 'mês'}`;
+                if (days > 0 && years === 0) ageText += `${ageText ? ' e ' : ''}${days} dia${days > 1 ? 's' : ''}`;
+                if (!ageText) ageText = 'Plantada hoje';
+                
+                return <p className="text-sm text-muted-foreground mt-2">Idade: {ageText}</p>;
+              })()}
             </CardContent>
           </Card>
 
