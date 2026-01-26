@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { observacaoSchema } from '@/lib/validations';
 
 export default function NovaObservacaoPage() {
   const [searchParams] = useSearchParams();
@@ -42,22 +43,36 @@ export default function NovaObservacaoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.mudaId || !formData.faseFenologica) {
+    // Parse and validate input with Zod schema
+    const alturaNum = formData.alturaPlanta ? Number(formData.alturaPlanta) : null;
+    const inputData = {
+      muda_id: formData.mudaId,
+      data: formData.data,
+      fase_fenologica: formData.faseFenologica,
+      altura_cm: alturaNum !== null && isNaN(alturaNum) ? 0 : alturaNum,
+      observacoes: formData.observacoes || null,
+    };
+
+    const validationResult = observacaoSchema.safeParse(inputData);
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
       toast({
-        title: 'Campos obrigatórios',
-        description: 'Por favor, preencha todos os campos obrigatórios.',
+        title: 'Erro de validação',
+        description: firstError.message,
         variant: 'destructive',
       });
       return;
     }
 
     try {
+      // Use the validated data which has correct types
       await createObservacao.mutateAsync({
-        muda_id: formData.mudaId,
-        data: formData.data,
-        fase_fenologica: formData.faseFenologica,
-        altura_cm: formData.alturaPlanta ? Number(formData.alturaPlanta) : null,
-        observacoes: formData.observacoes || null,
+        muda_id: validationResult.data.muda_id,
+        data: validationResult.data.data,
+        fase_fenologica: validationResult.data.fase_fenologica,
+        altura_cm: validationResult.data.altura_cm,
+        observacoes: validationResult.data.observacoes,
       });
 
       setSubmitted(true);

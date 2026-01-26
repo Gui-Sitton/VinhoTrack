@@ -36,6 +36,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useTalhoes } from '@/hooks/useMudas';
 import { useProdutos, useAplicacoes, useCreateAplicacao, useDeleteAplicacao } from '@/hooks/useAplicacoes';
+import { aplicacaoSchema } from '@/lib/validations';
 
 const tipoBadgeColors: Record<string, string> = {
   fungicida: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
@@ -77,18 +78,32 @@ export default function AplicacoesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.produto_id || !formData.talhao_id || !formData.quantidade) {
-      toast.error('Preencha todos os campos obrigatórios');
+    // Parse and validate input with Zod schema
+    const quantidadeNum = parseFloat(formData.quantidade);
+    const inputData = {
+      produto_id: formData.produto_id,
+      talhao_id: formData.talhao_id,
+      data: formData.data,
+      quantidade: isNaN(quantidadeNum) ? 0 : quantidadeNum,
+      motivo: formData.motivo || undefined,
+    };
+
+    const validationResult = aplicacaoSchema.safeParse(inputData);
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
+      toast.error(firstError.message);
       return;
     }
 
     try {
+      // Use the validated data which has correct types
       await createAplicacao.mutateAsync({
-        produto_id: formData.produto_id,
-        talhao_id: formData.talhao_id,
-        data: formData.data,
-        quantidade: parseFloat(formData.quantidade),
-        motivo: formData.motivo || undefined,
+        produto_id: validationResult.data.produto_id,
+        talhao_id: validationResult.data.talhao_id,
+        data: validationResult.data.data,
+        quantidade: validationResult.data.quantidade,
+        motivo: validationResult.data.motivo,
       });
 
       toast.success('Aplicação registrada com sucesso!');
