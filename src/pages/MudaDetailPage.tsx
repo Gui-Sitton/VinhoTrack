@@ -105,7 +105,7 @@ export default function MudaDetailPage() {
                 <h3 className="font-semibold">Data de Plantio</h3>
               </div>
               <p className="text-2xl font-bold">
-                {talhao?.data_plantio ? new Date(talhao.data_plantio).toLocaleDateString('pt-BR', {
+                {talhao?.data_plantio ? new Date(talhao.data_plantio + 'T12:00:00').toLocaleDateString('pt-BR', {
                   day: 'numeric',
                   month: 'long',
                   year: 'numeric',
