@@ -387,7 +387,9 @@ export default function AplicacoesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {aplicacoes.map((aplicacao) => {
+                    {[...aplicacoes]
+                      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+                      .map((aplicacao) => {
                       const talhao = talhoes?.find(t => t.id === aplicacao.talhao_id);
                       return (
                         <TableRow key={aplicacao.id}>
