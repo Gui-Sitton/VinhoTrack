@@ -158,9 +158,7 @@ export default function MudaDetailPage() {
               </p>
             ) : (
               <div className="space-y-6">
-                {[...muda.observacoes]
-                  .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
-                  .map((obs) => (
+                {muda.observacoes.map((obs) => (
                   <ObservacaoMudaItem
                     key={obs.id}
                     observacao={obs}
