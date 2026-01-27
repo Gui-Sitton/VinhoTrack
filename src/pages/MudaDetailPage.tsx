@@ -4,8 +4,8 @@ import { useMudaById, MudaStatus } from '@/hooks/useMudas';
 import { StatusBadge } from '@/components/mudas/StatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MapPin, Calendar, Leaf, Ruler, FileText, Loader2 } from 'lucide-react';
-
+import { ArrowLeft, MapPin, Calendar, FileText, Loader2 } from 'lucide-react';
+import { ObservacaoMudaItem } from '@/components/observacoes/ObservacaoMudaItem';
 const statusDisplayMap: Record<MudaStatus, string> = {
   ativa: 'Ativa',
   atencao: 'Atenção',
@@ -159,33 +159,11 @@ export default function MudaDetailPage() {
             ) : (
               <div className="space-y-6">
                 {muda.observacoes.map((obs) => (
-                  <div
+                  <ObservacaoMudaItem
                     key={obs.id}
-                    className="relative pl-6 pb-6 border-l-2 border-border last:pb-0"
-                  >
-                    <div className="absolute left-[-9px] top-0 w-4 h-4 rounded-full bg-primary border-4 border-background" />
-                    
-                    <div className="bg-muted/50 rounded-lg p-4">
-                      <div className="flex flex-wrap items-center gap-4 mb-3">
-                        <span className="text-sm font-medium text-foreground">
-                          {new Date(obs.data).toLocaleDateString('pt-BR')}
-                        </span>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                          <Leaf className="w-3 h-3 mr-1" />
-                          {obs.fase_fenologica}
-                        </span>
-                        {obs.altura_cm && (
-                          <span className="inline-flex items-center text-xs text-muted-foreground">
-                            <Ruler className="w-3 h-3 mr-1" />
-                            {obs.altura_cm} cm
-                          </span>
-                        )}
-                      </div>
-                      {obs.observacoes && (
-                        <p className="text-sm text-foreground">{obs.observacoes}</p>
-                      )}
-                    </div>
-                  </div>
+                    observacao={obs}
+                    mudaId={muda.id}
+                  />
                 ))}
               </div>
             )}
