@@ -12,6 +12,7 @@ import NovaObservacaoPage from "./pages/NovaObservacaoPage";
 import MapaVinhedoPage from "./pages/MapaVinhedoPage";
 import RelatoriosPage from "./pages/RelatoriosPage";
 import AplicacoesPage from "./pages/AplicacoesPage";
+import IrrigacoesPage from "./pages/IrrigacoesPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/observacao" element={<ProtectedRoute><NovaObservacaoPage /></ProtectedRoute>} />
             <Route path="/mapa" element={<ProtectedRoute><MapaVinhedoPage /></ProtectedRoute>} />
             <Route path="/aplicacoes" element={<ProtectedRoute><AplicacoesPage /></ProtectedRoute>} />
+            <Route path="/irrigacoes" element={<ProtectedRoute><IrrigacoesPage /></ProtectedRoute>} />
             <Route path="/relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

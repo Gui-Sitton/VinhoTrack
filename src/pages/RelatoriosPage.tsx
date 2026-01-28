@@ -1,10 +1,13 @@
 import { useState, useMemo } from 'react';
-import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database } from 'lucide-react';
+import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useReportData, AplicacaoProduto } from '@/hooks/useReportData';
+import { useIrrigacoesReport } from '@/hooks/useIrrigacoes';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import {
   BarChart,
   Bar,
@@ -37,6 +40,8 @@ export default function RelatoriosPage() {
     isLoading,
     hasData 
   } = useReportData();
+
+  const { data: irrigacaoData, isLoading: irrigacaoLoading } = useIrrigacoesReport();
 
   // Filtros
   const [anosSelecionados, setAnosSelecionados] = useState<number[]>([]);
@@ -165,7 +170,7 @@ export default function RelatoriosPage() {
         </div>
 
         {/* Loading State */}
-        {isLoading && (
+        {isLoading || irrigacaoLoading && (
           <Card>
             <CardContent className="py-12 flex flex-col items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
@@ -522,8 +527,125 @@ export default function RelatoriosPage() {
             </Card>
           </div>
 
+          {/* Seção de Irrigação */}
+          {irrigacaoData && irrigacaoData.totalEventos > 0 && (
+            <>
+              {/* Indicadores de Irrigação */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="animate-fade-in" style={{ animationDelay: '850ms' }}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                        <Droplet className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Volume de Água</p>
+                        <p className="text-2xl font-bold">{irrigacaoData.totalVolume.toLocaleString()} L</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="animate-fade-in" style={{ animationDelay: '900ms' }}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                        <Droplet className="w-5 h-5 text-cyan-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Eventos de Irrigação</p>
+                        <p className="text-2xl font-bold">{irrigacaoData.totalEventos}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="animate-fade-in" style={{ animationDelay: '950ms' }}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                        <Droplet className="w-5 h-5 text-teal-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Talhão Mais Irrigado</p>
+                        <p className="text-xl font-bold">{irrigacaoData.talhaoMaisIrrigado?.nome || '-'}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Gráficos de Irrigação */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Volume de Irrigação por Ano */}
+                <Card className="animate-fade-in" style={{ animationDelay: '1000ms' }}>
+                  <CardHeader>
+                    <CardTitle className="font-display text-lg">Volume de Água por Ano (L) – Irrigação</CardTitle>
+                    <CardDescription>Distribuição anual do volume de água aplicado</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {irrigacaoData.volumePorAno.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={irrigacaoData.volumePorAno.map(d => ({ ano: d.ano.toString(), volume: d.volume }))}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis dataKey="ano" className="text-sm" />
+                          <YAxis className="text-sm" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                            }}
+                            formatter={(value: number) => [`${value.toLocaleString()} L`, 'Volume']}
+                          />
+                          <Bar dataKey="volume" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                        Sem dados de irrigação
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Volume de Irrigação por Talhão */}
+                <Card className="animate-fade-in" style={{ animationDelay: '1050ms' }}>
+                  <CardHeader>
+                    <CardTitle className="font-display text-lg">Volume de Água por Talhão (L) – Irrigação</CardTitle>
+                    <CardDescription>Distribuição do volume de água por talhão</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {irrigacaoData.volumePorTalhao.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={irrigacaoData.volumePorTalhao.map(d => ({ talhao: d.talhaoNome, volume: d.volume }))}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis dataKey="talhao" className="text-sm" />
+                          <YAxis className="text-sm" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                            }}
+                            formatter={(value: number) => [`${value.toLocaleString()} L`, 'Volume']}
+                          />
+                          <Bar dataKey="volume" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                        Sem dados de irrigação
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+
           {/* Resumo Textual */}
-          <Card className="animate-fade-in" style={{ animationDelay: '800ms' }}>
+          <Card className="animate-fade-in" style={{ animationDelay: '1100ms' }}>
             <CardHeader>
               <CardTitle className="font-display text-lg">Resumo Agronômico</CardTitle>
               <CardDescription>
@@ -569,6 +691,21 @@ export default function RelatoriosPage() {
                     <strong>🧪 Manejo Fitossanitário:</strong> A categoria de produtos mais aplicada no 
                     período foi <strong>{dadosFiltrados.produtoMaisAplicado[0]}</strong>, totalizando{' '}
                     <strong>{Number(dadosFiltrados.produtoMaisAplicado[1]).toFixed(1)} kg/L</strong>.
+                  </p>
+                )}
+
+                {/* Resumo de Irrigação */}
+                {irrigacaoData && irrigacaoData.totalEventos > 0 && (
+                  <p className="text-foreground leading-relaxed">
+                    <strong>💧 Irrigação:</strong> No período analisado
+                    {irrigacaoData.periodoInicio && irrigacaoData.periodoFim && (
+                      <> ({format(new Date(irrigacaoData.periodoInicio + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })} a {format(new Date(irrigacaoData.periodoFim + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })})</>
+                    )}
+                    , foram registrados <strong>{irrigacaoData.totalEventos} eventos de irrigação</strong>, 
+                    totalizando <strong>{irrigacaoData.totalVolume.toLocaleString()} litros de água</strong> aplicados
+                    {irrigacaoData.talhaoMaisIrrigado && (
+                      <>, com maior concentração no talhão <strong>{irrigacaoData.talhaoMaisIrrigado.nome}</strong></>
+                    )}.
                   </p>
                 )}
 

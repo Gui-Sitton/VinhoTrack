@@ -59,6 +59,50 @@ export type Database = {
           },
         ]
       }
+      irrigacoes_talhoes: {
+        Row: {
+          created_at: string
+          data_fim: string | null
+          data_inicio: string
+          id: string
+          observacoes: string | null
+          talhao_id: string
+          user_id: string
+          volume_por_muda_l: number | null
+          volume_total_l: number
+        }
+        Insert: {
+          created_at?: string
+          data_fim?: string | null
+          data_inicio: string
+          id?: string
+          observacoes?: string | null
+          talhao_id: string
+          user_id: string
+          volume_por_muda_l?: number | null
+          volume_total_l: number
+        }
+        Update: {
+          created_at?: string
+          data_fim?: string | null
+          data_inicio?: string
+          id?: string
+          observacoes?: string | null
+          talhao_id?: string
+          user_id?: string
+          volume_por_muda_l?: number | null
+          volume_total_l?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "irrigacoes_talhoes_talhao_id_fkey"
+            columns: ["talhao_id"]
+            isOneToOne: false
+            referencedRelation: "talhoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mudas: {
         Row: {
           codigo: string
