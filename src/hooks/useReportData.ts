@@ -14,7 +14,7 @@ export interface AplicacaoProduto {
   ano: number;
   data: string;
   produto: string;
-  categoria: 'Fungicida' | 'Fertilizante' | 'Corretivo' | 'Inseticida' | 'Outro';
+  categoria: 'Fungicida' | 'Fertilizante' | 'Corretivo' | 'Inseticida' | 'Adjuvante' | 'Outro';
   quantidade: number;
   unidade: string;
   finalidade: string;
@@ -179,6 +179,7 @@ export function useAplicacoesProdutos() {
         fertilizante: 'Fertilizante',
         corretivo: 'Corretivo',
         inseticida: 'Inseticida',
+        adjuvante: 'Adjuvante',
         outro: 'Outro',
       };
 
@@ -260,11 +261,12 @@ export function useCategoriasDisponiveis() {
         fertilizante: 'Fertilizante',
         corretivo: 'Corretivo',
         inseticida: 'Inseticida',
+        adjuvante: 'Adjuvante',
         outro: 'Outro',
       };
 
       if (!produtos || produtos.length === 0) {
-        return ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida'] as AplicacaoProduto['categoria'][];
+        return ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida', 'Adjuvante'] as AplicacaoProduto['categoria'][];
       }
 
       const categorias = [...new Set(produtos.map(p => tipoMap[p.tipo] || 'Outro'))];
