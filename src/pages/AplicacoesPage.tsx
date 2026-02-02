@@ -43,6 +43,7 @@ const tipoBadgeColors: Record<string, string> = {
   fertilizante: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
   corretivo: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
   inseticida: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+  adjuvante: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
   outro: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300',
 };
 
@@ -51,6 +52,7 @@ const tipoLabels: Record<string, string> = {
   fertilizante: 'Fertilizante',
   corretivo: 'Corretivo',
   inseticida: 'Inseticida',
+  adjuvante: 'Adjuvante',
   outro: 'Outro',
 };
 

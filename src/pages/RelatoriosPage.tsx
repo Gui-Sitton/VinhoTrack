@@ -25,8 +25,8 @@ import {
 } from 'recharts';
 import { cn } from '@/lib/utils';
 
-const COLORS = ['#7c3aed', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
-const CATEGORIAS_DEFAULT: AplicacaoProduto['categoria'][] = ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida'];
+const COLORS = ['#7c3aed', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#6366f1'];
+const CATEGORIAS_DEFAULT: AplicacaoProduto['categoria'][] = ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida', 'Adjuvante'];
 
 export default function RelatoriosPage() {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
@@ -691,6 +691,14 @@ export default function RelatoriosPage() {
                     <strong>🧪 Manejo Fitossanitário:</strong> A categoria de produtos mais aplicada no 
                     período foi <strong>{dadosFiltrados.produtoMaisAplicado[0]}</strong>, totalizando{' '}
                     <strong>{Number(dadosFiltrados.produtoMaisAplicado[1]).toFixed(1)} kg/L</strong>.
+                  </p>
+                )}
+
+                {/* Nota sobre Adjuvantes */}
+                {dadosFiltrados.aplicacoesFiltradas.some(ap => ap.categoria === 'Adjuvante') && (
+                  <p className="text-foreground leading-relaxed">
+                    <strong>🧴 Adjuvantes:</strong> Os adjuvantes foram aplicados como complemento de calda, 
+                    não sendo considerados produtos de ação direta.
                   </p>
                 )}
 
