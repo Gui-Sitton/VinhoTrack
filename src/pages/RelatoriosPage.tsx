@@ -4,8 +4,10 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useReportData, AplicacaoProduto } from '@/hooks/useReportData';
 import { useIrrigacoesReport } from '@/hooks/useIrrigacoes';
+import ObservacoesReport from '@/components/relatorios/ObservacoesReport';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -28,9 +30,16 @@ import { cn } from '@/lib/utils';
 const COLORS = ['#7c3aed', '#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#6366f1'];
 const CATEGORIAS_DEFAULT: AplicacaoProduto['categoria'][] = ['Fungicida', 'Fertilizante', 'Corretivo', 'Inseticida', 'Adjuvante'];
 
+const tooltipStyle = {
+  backgroundColor: 'hsl(var(--card))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: '8px',
+};
+
 export default function RelatoriosPage() {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState('aplicacoes');
   
   const { 
     producaoSafras, 
@@ -170,7 +179,7 @@ export default function RelatoriosPage() {
         </div>
 
         {/* Loading State */}
-        {isLoading || irrigacaoLoading && (
+        {(isLoading || irrigacaoLoading) && (
           <Card>
             <CardContent className="py-12 flex flex-col items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
@@ -195,7 +204,7 @@ export default function RelatoriosPage() {
               </h2>
               <p className="text-muted-foreground mb-6 max-w-md">
                 {hasData 
-                  ? 'Processe os dados de produção, aplicações e desenvolvimento vegetativo.'
+                  ? 'Processe os dados de produção, aplicações, observações e desenvolvimento vegetativo.'
                   : 'Não há dados de produção ou aplicações cadastrados. Cadastre safras e aplicações para gerar relatórios.'}
               </p>
               <Button
@@ -220,511 +229,506 @@ export default function RelatoriosPage() {
           </Card>
         )}
 
-        {/* Filtros */}
-        {!isLoading && hasData && (
-          <Card>
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-5 h-5 text-primary" />
-                  <CardTitle className="font-display text-lg">Filtros do Relatório</CardTitle>
-                </div>
-                {(anosSelecionados.length < anosParaExibir.length || categoriasSelecionadas.length < categoriasParaExibir.length) && (
-                  <Button variant="ghost" size="sm" onClick={limparFiltros} className="gap-1">
-                    <X className="w-4 h-4" />
-                    Limpar filtros
-                  </Button>
-                )}
-              </div>
-              <CardDescription>Selecione os anos e categorias para personalizar o relatório</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Filtro por Ano */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Anos</p>
-                <div className="flex flex-wrap gap-2">
-                  {anosParaExibir.map(ano => (
-                    <Badge
-                      key={ano}
-                      variant={anosSelecionados.includes(ano) ? 'default' : 'outline'}
-                      className={cn(
-                        'cursor-pointer transition-all hover:scale-105',
-                        anosSelecionados.includes(ano) 
-                          ? 'bg-primary hover:bg-primary/90' 
-                          : 'hover:bg-primary/10'
-                      )}
-                      onClick={() => toggleAno(ano)}
-                    >
-                      {ano}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              {/* Filtro por Categoria */}
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Categorias de Produtos</p>
-                <div className="flex flex-wrap gap-2">
-                  {categoriasParaExibir.map((categoria, index) => (
-                    <Badge
-                      key={categoria}
-                      variant={categoriasSelecionadas.includes(categoria) ? 'default' : 'outline'}
-                      className={cn(
-                        'cursor-pointer transition-all hover:scale-105',
-                        categoriasSelecionadas.includes(categoria)
-                          ? ''
-                          : 'hover:bg-primary/10'
-                      )}
-                      style={{
-                        backgroundColor: categoriasSelecionadas.includes(categoria) 
-                          ? COLORS[index % COLORS.length] 
-                          : undefined,
-                        borderColor: !categoriasSelecionadas.includes(categoria) 
-                          ? COLORS[index % COLORS.length] 
-                          : undefined,
-                        color: categoriasSelecionadas.includes(categoria) 
-                          ? 'white' 
-                          : COLORS[index % COLORS.length],
-                      }}
-                      onClick={() => toggleCategoria(categoria)}
-                    >
-                      {categoria}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              {/* Resumo dos filtros */}
-              <div className="pt-2 border-t border-border">
-                <p className="text-sm text-muted-foreground">
-                  {anosSelecionados.length} ano(s) · {categoriasSelecionadas.length} categoria(s) selecionada(s)
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Conteúdo do Relatório */}
+        {/* Conteúdo do Relatório com Abas */}
         <div
           className={cn(
             'space-y-6 transition-all duration-500',
             relatorioGerado && hasData ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none h-0 overflow-hidden'
           )}
         >
-          {/* Indicadores Rápidos */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="animate-fade-in" style={{ animationDelay: '0ms' }}>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Produção Total</p>
-                    <p className="text-2xl font-bold">{dadosFiltrados.producaoTotal.toLocaleString()} kg</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 max-w-md">
+              <TabsTrigger value="aplicacoes" className="gap-2">
+                <FlaskConical className="w-4 h-4" />
+                Aplicações & Produção
+              </TabsTrigger>
+              <TabsTrigger value="observacoes" className="gap-2">
+                <Leaf className="w-4 h-4" />
+                Observações
+              </TabsTrigger>
+            </TabsList>
 
-            <Card className="animate-fade-in" style={{ animationDelay: '100ms' }}>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                    <Leaf className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Evolução</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="animate-fade-in" style={{ animationDelay: '200ms' }}>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                    <FlaskConical className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Mais Aplicado</p>
-                    <p className="text-lg font-bold">{dadosFiltrados.produtoMaisAplicado[0]}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="animate-fade-in" style={{ animationDelay: '300ms' }}>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                    <BarChart3 className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Melhor Safra</p>
-                    <p className="text-2xl font-bold">{dadosFiltrados.anoMaiorProdutividade?.ano || '-'}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Gráficos - Linha 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Gráfico de Produção por Ano */}
-            <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Produção por Ano</CardTitle>
-                <CardDescription>Total de produção em kg por safra</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {producaoData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={producaoData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="ano" className="text-sm" />
-                      <YAxis className="text-sm" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Produção']}
-                      />
-                      <Bar dataKey="producao" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                    Sem dados de produção cadastrados
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Gráfico de Produção Média por Planta */}
-            <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Produção Média por Planta</CardTitle>
-                <CardDescription>Evolução da produtividade em kg/planta</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {producaoMediaData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={producaoMediaData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="ano" className="text-sm" />
-                      <YAxis className="text-sm" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: number) => [`${value.toFixed(1)} kg/planta`, 'Média']}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="media"
-                        stroke="hsl(var(--primary))"
-                        strokeWidth={3}
-                        dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                    Sem dados de produção cadastrados
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Gráficos - Linha 2 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Gráfico de Pizza - Aplicações por Categoria */}
-            <Card className="animate-fade-in" style={{ animationDelay: '600ms' }}>
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Aplicações por Categoria</CardTitle>
-                <CardDescription>Distribuição de produtos aplicados</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {dadosFiltrados.aplicacoesPorCategoria.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
-                      <Pie
-                        data={dadosFiltrados.aplicacoesPorCategoria}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={100}
-                        paddingAngle={2}
-                        dataKey="total"
-                        nameKey="categoria"
-                        label={({ categoria, percent }) =>
-                          `${categoria} ${(percent * 100).toFixed(0)}%`
-                        }
-                        labelLine={false}
-                      >
-                        {dadosFiltrados.aplicacoesPorCategoria.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            {/* ===== ABA: APLICAÇÕES & PRODUÇÃO ===== */}
+            <TabsContent value="aplicacoes" className="space-y-6 mt-6">
+              {/* Filtros */}
+              {!isLoading && hasData && (
+                <Card>
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Filter className="w-5 h-5 text-primary" />
+                        <CardTitle className="font-display text-lg">Filtros do Relatório</CardTitle>
+                      </div>
+                      {(anosSelecionados.length < anosParaExibir.length || categoriasSelecionadas.length < categoriasParaExibir.length) && (
+                        <Button variant="ghost" size="sm" onClick={limparFiltros} className="gap-1">
+                          <X className="w-4 h-4" />
+                          Limpar filtros
+                        </Button>
+                      )}
+                    </div>
+                    <CardDescription>Selecione os anos e categorias para personalizar o relatório</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Filtro por Ano */}
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-foreground">Anos</p>
+                      <div className="flex flex-wrap gap-2">
+                        {anosParaExibir.map(ano => (
+                          <Badge
+                            key={ano}
+                            variant={anosSelecionados.includes(ano) ? 'default' : 'outline'}
+                            className={cn(
+                              'cursor-pointer transition-all hover:scale-105',
+                              anosSelecionados.includes(ano) 
+                                ? 'bg-primary hover:bg-primary/90' 
+                                : 'hover:bg-primary/10'
+                            )}
+                            onClick={() => toggleAno(ano)}
+                          >
+                            {ano}
+                          </Badge>
                         ))}
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Quantidade']}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                    Sem dados de aplicações cadastrados
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      </div>
+                    </div>
 
-            {/* Gráfico de Volume Aplicado por Ano */}
-            <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Volume Aplicado por Ano</CardTitle>
-                <CardDescription>Total de produtos aplicados (kg + L)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {volumeAplicadoData.some(d => d.volume > 0) ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={volumeAplicadoData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="ano" className="text-sm" />
-                      <YAxis className="text-sm" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                        }}
-                        formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Volume']}
-                      />
-                      <Bar dataKey="volume" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                    Sem dados de aplicações cadastrados
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                    {/* Filtro por Categoria */}
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-foreground">Categorias de Produtos</p>
+                      <div className="flex flex-wrap gap-2">
+                        {categoriasParaExibir.map((categoria, index) => (
+                          <Badge
+                            key={categoria}
+                            variant={categoriasSelecionadas.includes(categoria) ? 'default' : 'outline'}
+                            className={cn(
+                              'cursor-pointer transition-all hover:scale-105',
+                              categoriasSelecionadas.includes(categoria)
+                                ? ''
+                                : 'hover:bg-primary/10'
+                            )}
+                            style={{
+                              backgroundColor: categoriasSelecionadas.includes(categoria) 
+                                ? COLORS[index % COLORS.length] 
+                                : undefined,
+                              borderColor: !categoriasSelecionadas.includes(categoria) 
+                                ? COLORS[index % COLORS.length] 
+                                : undefined,
+                              color: categoriasSelecionadas.includes(categoria) 
+                                ? 'white' 
+                                : COLORS[index % COLORS.length],
+                            }}
+                            onClick={() => toggleCategoria(categoria)}
+                          >
+                            {categoria}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
 
-          {/* Seção de Irrigação */}
-          {irrigacaoData && irrigacaoData.totalEventos > 0 && (
-            <>
-              {/* Indicadores de Irrigação */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="animate-fade-in" style={{ animationDelay: '850ms' }}>
+                    {/* Resumo dos filtros */}
+                    <div className="pt-2 border-t border-border">
+                      <p className="text-sm text-muted-foreground">
+                        {anosSelecionados.length} ano(s) · {categoriasSelecionadas.length} categoria(s) selecionada(s)
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Indicadores Rápidos */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card className="animate-fade-in" style={{ animationDelay: '0ms' }}>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                        <Droplet className="w-5 h-5 text-blue-600" />
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <TrendingUp className="w-5 h-5 text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Volume de Água</p>
-                        <p className="text-2xl font-bold">{irrigacaoData.totalVolume.toLocaleString()} L</p>
+                        <p className="text-sm text-muted-foreground">Produção Total</p>
+                        <p className="text-2xl font-bold">{dadosFiltrados.producaoTotal.toLocaleString()} kg</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="animate-fade-in" style={{ animationDelay: '900ms' }}>
+                <Card className="animate-fade-in" style={{ animationDelay: '100ms' }}>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-                        <Droplet className="w-5 h-5 text-cyan-600" />
+                      <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+                        <Leaf className="w-5 h-5 text-green-600" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Eventos de Irrigação</p>
-                        <p className="text-2xl font-bold">{irrigacaoData.totalEventos}</p>
+                        <p className="text-sm text-muted-foreground">Evolução</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
+                        </p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="animate-fade-in" style={{ animationDelay: '950ms' }}>
+                <Card className="animate-fade-in" style={{ animationDelay: '200ms' }}>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-teal-500/10 flex items-center justify-center">
-                        <Droplet className="w-5 h-5 text-teal-600" />
+                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                        <FlaskConical className="w-5 h-5 text-amber-600" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Talhão Mais Irrigado</p>
-                        <p className="text-xl font-bold">{irrigacaoData.talhaoMaisIrrigado?.nome || '-'}</p>
+                        <p className="text-sm text-muted-foreground">Mais Aplicado</p>
+                        <p className="text-lg font-bold">{dadosFiltrados.produtoMaisAplicado[0]}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="animate-fade-in" style={{ animationDelay: '300ms' }}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                        <BarChart3 className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Melhor Safra</p>
+                        <p className="text-2xl font-bold">{dadosFiltrados.anoMaiorProdutividade?.ano || '-'}</p>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Gráficos de Irrigação */}
+              {/* Gráficos - Linha 1 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Volume de Irrigação por Ano */}
-                <Card className="animate-fade-in" style={{ animationDelay: '1000ms' }}>
+                {/* Gráfico de Produção por Ano */}
+                <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
                   <CardHeader>
-                    <CardTitle className="font-display text-lg">Volume de Água por Ano (L) – Irrigação</CardTitle>
-                    <CardDescription>Distribuição anual do volume de água aplicado</CardDescription>
+                    <CardTitle className="font-display text-lg">Produção por Ano</CardTitle>
+                    <CardDescription>Total de produção em kg por safra</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {irrigacaoData.volumePorAno.length > 0 ? (
+                    {producaoData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={280}>
-                        <BarChart data={irrigacaoData.volumePorAno.map(d => ({ ano: d.ano.toString(), volume: d.volume }))}>
+                        <BarChart data={producaoData}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis dataKey="ano" className="text-sm" />
                           <YAxis className="text-sm" />
                           <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'hsl(var(--card))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px',
-                            }}
-                            formatter={(value: number) => [`${value.toLocaleString()} L`, 'Volume']}
+                            contentStyle={tooltipStyle}
+                            formatter={(value: number) => [`${value.toLocaleString()} kg`, 'Produção']}
                           />
-                          <Bar dataKey="volume" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="producao" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
                       <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                        Sem dados de irrigação
+                        Sem dados de produção cadastrados
                       </div>
                     )}
                   </CardContent>
                 </Card>
 
-                {/* Volume de Irrigação por Talhão */}
-                <Card className="animate-fade-in" style={{ animationDelay: '1050ms' }}>
+                {/* Gráfico de Produção Média por Planta */}
+                <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
                   <CardHeader>
-                    <CardTitle className="font-display text-lg">Volume de Água por Talhão (L) – Irrigação</CardTitle>
-                    <CardDescription>Distribuição do volume de água por talhão</CardDescription>
+                    <CardTitle className="font-display text-lg">Produção Média por Planta</CardTitle>
+                    <CardDescription>Evolução da produtividade em kg/planta</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {irrigacaoData.volumePorTalhao.length > 0 ? (
+                    {producaoMediaData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={280}>
-                        <BarChart data={irrigacaoData.volumePorTalhao.map(d => ({ talhao: d.talhaoNome, volume: d.volume }))}>
+                        <LineChart data={producaoMediaData}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                          <XAxis dataKey="talhao" className="text-sm" />
+                          <XAxis dataKey="ano" className="text-sm" />
                           <YAxis className="text-sm" />
                           <Tooltip
-                            contentStyle={{
-                              backgroundColor: 'hsl(var(--card))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px',
-                            }}
-                            formatter={(value: number) => [`${value.toLocaleString()} L`, 'Volume']}
+                            contentStyle={tooltipStyle}
+                            formatter={(value: number) => [`${value.toFixed(1)} kg/planta`, 'Média']}
                           />
-                          <Bar dataKey="volume" fill="#14b8a6" radius={[4, 4, 0, 0]} />
-                        </BarChart>
+                          <Line
+                            type="monotone"
+                            dataKey="media"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={3}
+                            dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 6 }}
+                          />
+                        </LineChart>
                       </ResponsiveContainer>
                     ) : (
                       <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                        Sem dados de irrigação
+                        Sem dados de produção cadastrados
                       </div>
                     )}
                   </CardContent>
                 </Card>
               </div>
-            </>
-          )}
 
-          {/* Resumo Textual */}
-          <Card className="animate-fade-in" style={{ animationDelay: '1100ms' }}>
-            <CardHeader>
-              <CardTitle className="font-display text-lg">Resumo Agronômico</CardTitle>
-              <CardDescription>
-                Análise automática dos dados do período {anosSelecionados.length > 0 ? `${Math.min(...anosSelecionados)}-${Math.max(...anosSelecionados)}` : 'selecionado'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="prose prose-sm max-w-none">
-              <div className="bg-muted/50 rounded-lg p-6 space-y-4">
-                {dadosFiltrados.producaoTotal > 0 ? (
-                  <>
-                    <p className="text-foreground leading-relaxed">
-                      <strong>📊 Produção Total no Período:</strong> A produção acumulada das safras selecionadas 
-                      totalizou <strong>{dadosFiltrados.producaoTotal.toLocaleString()} kg</strong> de uva.
-                    </p>
-                    
-                    {dadosFiltrados.producaoFiltrada.length > 1 && (
-                      <p className="text-foreground leading-relaxed">
-                        <strong>📈 Evolução da Produtividade:</strong> Observou-se um crescimento de{' '}
-                        <strong className={dadosFiltrados.evolucaoPercentual >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
-                        </strong>{' '}
-                        na produção total no período selecionado.
-                      </p>
+              {/* Gráficos - Linha 2 */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Gráfico de Pizza - Aplicações por Categoria */}
+                <Card className="animate-fade-in" style={{ animationDelay: '600ms' }}>
+                  <CardHeader>
+                    <CardTitle className="font-display text-lg">Aplicações por Categoria</CardTitle>
+                    <CardDescription>Distribuição de produtos aplicados</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {dadosFiltrados.aplicacoesPorCategoria.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <PieChart>
+                          <Pie
+                            data={dadosFiltrados.aplicacoesPorCategoria}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={2}
+                            dataKey="total"
+                            nameKey="categoria"
+                            label={({ categoria, percent }) =>
+                              `${categoria} ${(percent * 100).toFixed(0)}%`
+                            }
+                            labelLine={false}
+                          >
+                            {dadosFiltrados.aplicacoesPorCategoria.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={tooltipStyle}
+                            formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Quantidade']}
+                          />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                        Sem dados de aplicações cadastrados
+                      </div>
                     )}
+                  </CardContent>
+                </Card>
 
-                    {dadosFiltrados.anoMaiorProdutividade && (
-                      <p className="text-foreground leading-relaxed">
-                        <strong>🏆 Safra de Destaque:</strong> O ano de{' '}
-                        <strong>{dadosFiltrados.anoMaiorProdutividade.ano}</strong> apresentou a maior produtividade 
-                        média por planta, atingindo{' '}
-                        <strong>{dadosFiltrados.anoMaiorProdutividade.producaoMediaPlanta.toFixed(1)} kg/planta</strong>.
-                      </p>
+                {/* Gráfico de Volume Aplicado por Ano */}
+                <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
+                  <CardHeader>
+                    <CardTitle className="font-display text-lg">Volume Aplicado por Ano</CardTitle>
+                    <CardDescription>Total de produtos aplicados (kg + L)</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {volumeAplicadoData.some(d => d.volume > 0) ? (
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={volumeAplicadoData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis dataKey="ano" className="text-sm" />
+                          <YAxis className="text-sm" />
+                          <Tooltip
+                            contentStyle={tooltipStyle}
+                            formatter={(value: number) => [`${value.toFixed(1)} kg/L`, 'Volume']}
+                          />
+                          <Bar dataKey="volume" fill="#10b981" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                        Sem dados de aplicações cadastrados
+                      </div>
                     )}
-                  </>
-                ) : (
-                  <p className="text-muted-foreground leading-relaxed">
-                    Não há dados de produção cadastrados para o período selecionado.
-                  </p>
-                )}
-
-                {dadosFiltrados.produtoMaisAplicado[0] !== 'N/A' && (
-                  <p className="text-foreground leading-relaxed">
-                    <strong>🧪 Manejo Fitossanitário:</strong> A categoria de produtos mais aplicada no 
-                    período foi <strong>{dadosFiltrados.produtoMaisAplicado[0]}</strong>, totalizando{' '}
-                    <strong>{Number(dadosFiltrados.produtoMaisAplicado[1]).toFixed(1)} kg/L</strong>.
-                  </p>
-                )}
-
-                {/* Nota sobre Adjuvantes */}
-                {dadosFiltrados.aplicacoesFiltradas.some(ap => ap.categoria === 'Adjuvante') && (
-                  <p className="text-foreground leading-relaxed">
-                    <strong>🧴 Adjuvantes:</strong> Os adjuvantes foram aplicados como complemento de calda, 
-                    não sendo considerados produtos de ação direta.
-                  </p>
-                )}
-
-                {/* Resumo de Irrigação */}
-                {irrigacaoData && irrigacaoData.totalEventos > 0 && (
-                  <p className="text-foreground leading-relaxed">
-                    <strong>💧 Irrigação:</strong> No período analisado
-                    {irrigacaoData.periodoInicio && irrigacaoData.periodoFim && (
-                      <> ({format(new Date(irrigacaoData.periodoInicio + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })} a {format(new Date(irrigacaoData.periodoFim + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })})</>
-                    )}
-                    , foram registrados <strong>{irrigacaoData.totalEventos} eventos de irrigação</strong>, 
-                    totalizando <strong>{irrigacaoData.totalVolume.toLocaleString()} litros de água</strong> aplicados
-                    {irrigacaoData.talhaoMaisIrrigado && (
-                      <>, com maior concentração no talhão <strong>{irrigacaoData.talhaoMaisIrrigado.nome}</strong></>
-                    )}.
-                  </p>
-                )}
-
-                <div className="border-t border-border pt-4 mt-4">
-                  <p className="text-muted-foreground text-sm italic">
-                    * Relatório gerado automaticamente com base nos dados registrados no banco de dados.
-                  </p>
-                </div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* Seção de Irrigação */}
+              {irrigacaoData && irrigacaoData.totalEventos > 0 && (
+                <>
+                  {/* Indicadores de Irrigação */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="animate-fade-in" style={{ animationDelay: '850ms' }}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                            <Droplet className="w-5 h-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Volume de Água</p>
+                            <p className="text-2xl font-bold">{irrigacaoData.totalVolume.toLocaleString()} L</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="animate-fade-in" style={{ animationDelay: '900ms' }}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                            <Droplet className="w-5 h-5 text-cyan-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Eventos de Irrigação</p>
+                            <p className="text-2xl font-bold">{irrigacaoData.totalEventos}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="animate-fade-in" style={{ animationDelay: '950ms' }}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                            <Droplet className="w-5 h-5 text-teal-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Talhão Mais Irrigado</p>
+                            <p className="text-xl font-bold">{irrigacaoData.talhaoMaisIrrigado?.nome || '-'}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Gráficos de Irrigação */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <Card className="animate-fade-in" style={{ animationDelay: '1000ms' }}>
+                      <CardHeader>
+                        <CardTitle className="font-display text-lg">Volume de Água por Ano (L) – Irrigação</CardTitle>
+                        <CardDescription>Distribuição anual do volume de água aplicado</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {irrigacaoData.volumePorAno.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={280}>
+                            <BarChart data={irrigacaoData.volumePorAno.map(d => ({ ano: d.ano.toString(), volume: d.volume }))}>
+                              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                              <XAxis dataKey="ano" className="text-sm" />
+                              <YAxis className="text-sm" />
+                              <Tooltip
+                                contentStyle={tooltipStyle}
+                                formatter={(value: number) => [`${value.toLocaleString()} L`, 'Volume']}
+                              />
+                              <Bar dataKey="volume" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                            Sem dados de irrigação
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="animate-fade-in" style={{ animationDelay: '1050ms' }}>
+                      <CardHeader>
+                        <CardTitle className="font-display text-lg">Volume de Água por Talhão (L) – Irrigação</CardTitle>
+                        <CardDescription>Distribuição do volume de água por talhão</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {irrigacaoData.volumePorTalhao.length > 0 ? (
+                          <ResponsiveContainer width="100%" height={280}>
+                            <BarChart data={irrigacaoData.volumePorTalhao.map(d => ({ talhao: d.talhaoNome, volume: d.volume }))}>
+                              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                              <XAxis dataKey="talhao" className="text-sm" />
+                              <YAxis className="text-sm" />
+                              <Tooltip
+                                contentStyle={tooltipStyle}
+                                formatter={(value: number) => [`${value.toLocaleString()} L`, 'Volume']}
+                              />
+                              <Bar dataKey="volume" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+                            Sem dados de irrigação
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+
+              {/* Resumo Textual - Aplicações */}
+              <Card className="animate-fade-in" style={{ animationDelay: '1100ms' }}>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg">Resumo Agronômico</CardTitle>
+                  <CardDescription>
+                    Análise automática dos dados do período {anosSelecionados.length > 0 ? `${Math.min(...anosSelecionados)}-${Math.max(...anosSelecionados)}` : 'selecionado'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="prose prose-sm max-w-none">
+                  <div className="bg-muted/50 rounded-lg p-6 space-y-4">
+                    {dadosFiltrados.producaoTotal > 0 ? (
+                      <>
+                        <p className="text-foreground leading-relaxed">
+                          <strong>📊 Produção Total no Período:</strong> A produção acumulada das safras selecionadas 
+                          totalizou <strong>{dadosFiltrados.producaoTotal.toLocaleString()} kg</strong> de uva.
+                        </p>
+                        
+                        {dadosFiltrados.producaoFiltrada.length > 1 && (
+                          <p className="text-foreground leading-relaxed">
+                            <strong>📈 Evolução da Produtividade:</strong> Observou-se um crescimento de{' '}
+                            <strong className={dadosFiltrados.evolucaoPercentual >= 0 ? 'text-green-600' : 'text-red-600'}>
+                              {dadosFiltrados.evolucaoPercentual >= 0 ? '+' : ''}{dadosFiltrados.evolucaoPercentual.toFixed(0)}%
+                            </strong>{' '}
+                            na produção total no período selecionado.
+                          </p>
+                        )}
+
+                        {dadosFiltrados.anoMaiorProdutividade && (
+                          <p className="text-foreground leading-relaxed">
+                            <strong>🏆 Safra de Destaque:</strong> O ano de{' '}
+                            <strong>{dadosFiltrados.anoMaiorProdutividade.ano}</strong> apresentou a maior produtividade 
+                            média por planta, atingindo{' '}
+                            <strong>{dadosFiltrados.anoMaiorProdutividade.producaoMediaPlanta.toFixed(1)} kg/planta</strong>.
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground leading-relaxed">
+                        Não há dados de produção cadastrados para o período selecionado.
+                      </p>
+                    )}
+
+                    {dadosFiltrados.produtoMaisAplicado[0] !== 'N/A' && (
+                      <p className="text-foreground leading-relaxed">
+                        <strong>🧪 Manejo Fitossanitário:</strong> A categoria de produtos mais aplicada no 
+                        período foi <strong>{dadosFiltrados.produtoMaisAplicado[0]}</strong>, totalizando{' '}
+                        <strong>{Number(dadosFiltrados.produtoMaisAplicado[1]).toFixed(1)} kg/L</strong>.
+                      </p>
+                    )}
+
+                    {/* Nota sobre Adjuvantes */}
+                    {dadosFiltrados.aplicacoesFiltradas.some(ap => ap.categoria === 'Adjuvante') && (
+                      <p className="text-foreground leading-relaxed">
+                        <strong>🧴 Adjuvantes:</strong> Os adjuvantes foram aplicados como complemento de calda, 
+                        não sendo considerados produtos de ação direta.
+                      </p>
+                    )}
+
+                    {/* Resumo de Irrigação */}
+                    {irrigacaoData && irrigacaoData.totalEventos > 0 && (
+                      <p className="text-foreground leading-relaxed">
+                        <strong>💧 Irrigação:</strong> No período analisado
+                        {irrigacaoData.periodoInicio && irrigacaoData.periodoFim && (
+                          <> ({format(new Date(irrigacaoData.periodoInicio + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })} a {format(new Date(irrigacaoData.periodoFim + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })})</>
+                        )}
+                        , foram registrados <strong>{irrigacaoData.totalEventos} eventos de irrigação</strong>, 
+                        totalizando <strong>{irrigacaoData.totalVolume.toLocaleString()} litros de água</strong> aplicados
+                        {irrigacaoData.talhaoMaisIrrigado && (
+                          <>, com maior concentração no talhão <strong>{irrigacaoData.talhaoMaisIrrigado.nome}</strong></>
+                        )}.
+                      </p>
+                    )}
+
+                    <div className="border-t border-border pt-4 mt-4">
+                      <p className="text-muted-foreground text-sm italic">
+                        * Relatório gerado automaticamente com base nos dados registrados no banco de dados.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ===== ABA: OBSERVAÇÕES ===== */}
+            <TabsContent value="observacoes" className="mt-6">
+              <ObservacoesReport />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </MainLayout>
