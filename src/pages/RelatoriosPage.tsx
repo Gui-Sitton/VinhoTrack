@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet, ImageDown } from 'lucide-react';
+import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet, ImageDown, Download, FileText } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1024,6 +1024,21 @@ export default function RelatoriosPage() {
                         * Relatório gerado automaticamente com base nos dados registrados no banco de dados.
                       </p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+              {/* Bottom Export Buttons */}
+              <Card className="animate-fade-in" style={{ animationDelay: '1200ms' }}>
+                <CardContent className="py-6">
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <Button variant="outline" className="gap-2 w-full sm:w-auto" onClick={handleDownloadCSV}>
+                      <Download className="w-4 h-4" />
+                      Download CSV
+                    </Button>
+                    <Button className="gap-2 w-full sm:w-auto" onClick={handleDownloadPDF}>
+                      <FileText className="w-4 h-4" />
+                      Download PDF
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
