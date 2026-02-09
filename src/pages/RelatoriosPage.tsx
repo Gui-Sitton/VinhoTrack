@@ -44,6 +44,7 @@ export default function RelatoriosPage() {
   const [activeTab, setActiveTab] = useState('aplicacoes');
 
   const relatorioRef = useRef<HTMLDivElement | null>(null);
+  const pdfContentRef = useRef<HTMLDivElement | null>(null);
   const graficoProducaoAnoRef = useRef<HTMLDivElement | null>(null);
   const graficoProducaoMediaRef = useRef<HTMLDivElement | null>(null);
   const graficoAplicacoesCategoriaRef = useRef<HTMLDivElement | null>(null);
@@ -240,9 +241,9 @@ export default function RelatoriosPage() {
   };
 
   const handleDownloadPDF = async () => {
-    if (!relatorioRef.current) return;
+    if (!pdfContentRef.current) return;
 
-    const elemento = relatorioRef.current;
+    const elemento = pdfContentRef.current;
     const canvas = await html2canvas(elemento, { scale: 2 });
     const imgData = canvas.toDataURL('image/png');
 
@@ -250,7 +251,14 @@ export default function RelatoriosPage() {
     const larguraPdf = pdf.internal.pageSize.getWidth();
     const alturaPdf = (canvas.height * larguraPdf) / canvas.width;
 
-    pdf.addImage(imgData, 'PNG', 0, 0, larguraPdf, alturaPdf);
+    let posicaoY = 0;
+    const alturaPagina = pdf.internal.pageSize.getHeight();
+    while (posicaoY < alturaPdf) {
+      if (posicaoY > 0) pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 0, -posicaoY, larguraPdf, alturaPdf);
+      posicaoY += alturaPagina;
+    }
+
     pdf.save(gerarNomeArquivo('report', 'pdf'));
   };
 
@@ -560,6 +568,8 @@ export default function RelatoriosPage() {
                 </Card>
               )}
 
+              {/* PDF content starts here */}
+              <div ref={pdfContentRef} className="space-y-6">
               {/* Indicadores Rápidos */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="animate-fade-in" style={{ animationDelay: '0ms' }}>
@@ -1027,6 +1037,7 @@ export default function RelatoriosPage() {
                   </div>
                 </CardContent>
               </Card>
+              </div>{/* end pdfContentRef */}
               {/* Bottom Export Buttons */}
               <Card className="animate-fade-in" style={{ animationDelay: '1200ms' }}>
                 <CardContent className="py-6">
