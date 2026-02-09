@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet, ImageDown } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { useIrrigacoesReport } from '@/hooks/useIrrigacoes';
 import ObservacoesReport from '@/components/relatorios/ObservacoesReport';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import {
   BarChart,
   Bar,
@@ -40,6 +42,14 @@ export default function RelatoriosPage() {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('aplicacoes');
+
+  const relatorioRef = useRef<HTMLDivElement | null>(null);
+  const graficoProducaoAnoRef = useRef<HTMLDivElement | null>(null);
+  const graficoProducaoMediaRef = useRef<HTMLDivElement | null>(null);
+  const graficoAplicacoesCategoriaRef = useRef<HTMLDivElement | null>(null);
+  const graficoVolumeAplicadoRef = useRef<HTMLDivElement | null>(null);
+  const graficoIrrigacaoAnoRef = useRef<HTMLDivElement | null>(null);
+  const graficoIrrigacaoTalhaoRef = useRef<HTMLDivElement | null>(null);
   
   const { 
     producaoSafras, 
@@ -93,6 +103,172 @@ export default function RelatoriosPage() {
   const limparFiltros = () => {
     setAnosSelecionados(anosDisponiveis);
     setCategoriasSelecionadas(categoriasDisponiveis);
+  };
+
+  const slugificar = (texto: string) =>
+    texto
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+  const gerarNomeArquivo = (prefixo: string, extensao: string) => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    return `${prefixo}-${hoje}.${extensao}`;
+  };
+
+  const escaparCSV = (valor: unknown): string => {
+    if (valor === null || valor === undefined) return '';
+    const texto = String(valor);
+    if (/[",\n]/.test(texto)) {
+      return `"${texto.replace(/"/g, '""')}"`;
+    }
+    return texto;
+  };
+
+  const handleDownloadCSV = () => {
+    if (!relatorioGerado || !hasData) return;
+
+    const linhas: string[] = [];
+
+    linhas.push([
+      'tipo_registro',
+      'ano',
+      'data',
+      'categoria',
+      'produto',
+      'quantidade',
+      'unidade',
+      'motivo',
+      'producao_total_kg',
+      'producao_media_kg_planta',
+      'plantas_produtivas',
+      'irrigacao_volume_total_l',
+      'irrigacao_eventos',
+      'irrigacao_talhao',
+    ].join(','));
+
+    dadosFiltrados.producaoFiltrada.forEach((s) => {
+      linhas.push([
+        escaparCSV('producao'),
+        escaparCSV(s.ano),
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+        escaparCSV(s.producaoTotal),
+        escaparCSV(s.producaoMediaPlanta.toFixed(3)),
+        escaparCSV(s.plantasProdutivas),
+        '',
+        '',
+        '',
+      ].join(','));
+    });
+
+    dadosFiltrados.aplicacoesFiltradas.forEach((ap) => {
+      linhas.push([
+        escaparCSV('aplicacao'),
+        escaparCSV(ap.ano),
+        escaparCSV(ap.data),
+        escaparCSV(ap.categoria),
+        escaparCSV(ap.produto),
+        escaparCSV(ap.quantidade),
+        escaparCSV(ap.unidade),
+        escaparCSV(ap.finalidade),
+        '',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ].join(','));
+    });
+
+    if (irrigacaoData) {
+      irrigacaoData.volumePorAno.forEach((d) => {
+        linhas.push([
+          escaparCSV('irrigacao_ano'),
+          escaparCSV(d.ano),
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          escaparCSV(d.volume),
+          escaparCSV(irrigacaoData.totalEventos),
+          '',
+        ].join(','));
+      });
+
+      irrigacaoData.volumePorTalhao.forEach((d) => {
+        linhas.push([
+          escaparCSV('irrigacao_talhao'),
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          escaparCSV(d.volume),
+          '',
+          escaparCSV(d.talhaoNome),
+        ].join(','));
+      });
+    }
+
+    const conteudo = linhas.join('\n');
+    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = gerarNomeArquivo('report', 'csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!relatorioRef.current) return;
+
+    const elemento = relatorioRef.current;
+    const canvas = await html2canvas(elemento, { scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const larguraPdf = pdf.internal.pageSize.getWidth();
+    const alturaPdf = (canvas.height * larguraPdf) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, larguraPdf, alturaPdf);
+    pdf.save(gerarNomeArquivo('report', 'pdf'));
+  };
+
+  const handleDownloadGrafico = async (
+    ref: React.RefObject<HTMLDivElement>,
+    nomeGrafico: string,
+  ) => {
+    if (!ref.current) return;
+
+    const canvas = await html2canvas(ref.current, { scale: 2 });
+    const imgData = canvas.toDataURL('image/png');
+
+    const link = document.createElement('a');
+    link.href = imgData;
+    link.download = gerarNomeArquivo(`chart-${slugificar(nomeGrafico)}`, 'png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // Categorias para exibição (usar default se não houver dados)
@@ -219,7 +395,7 @@ export default function RelatoriosPage() {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-6" ref={relatorioRef}>
         {/* Header */}
         <div>
           <h1 className="font-display text-3xl font-bold text-foreground">Relatórios</h1>
@@ -450,10 +626,21 @@ export default function RelatoriosPage() {
                 {/* Gráfico de Produção por Ano */}
                 <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
                   <CardHeader>
-                    <CardTitle className="font-display text-lg">Produção por Ano</CardTitle>
+                    <CardTitle className="font-display text-lg flex items-center justify-between">
+                      <span>Produção por Ano</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleDownloadGrafico(graficoProducaoAnoRef, 'producao-por-ano')}
+                        aria-label="Download gráfico Produção por Ano"
+                      >
+                        <ImageDown className="w-4 h-4" />
+                      </Button>
+                    </CardTitle>
                     <CardDescription>Total de produção em kg por safra</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent ref={graficoProducaoAnoRef}>
                     {producaoData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={280}>
                         <BarChart data={producaoData}>
@@ -478,10 +665,21 @@ export default function RelatoriosPage() {
                 {/* Gráfico de Produção Média por Planta */}
                 <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
                   <CardHeader>
-                    <CardTitle className="font-display text-lg">Produção Média por Planta</CardTitle>
+                    <CardTitle className="font-display text-lg flex items-center justify-between">
+                      <span>Produção Média por Planta</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleDownloadGrafico(graficoProducaoMediaRef, 'producao-media-por-planta')}
+                        aria-label="Download gráfico Produção Média por Planta"
+                      >
+                        <ImageDown className="w-4 h-4" />
+                      </Button>
+                    </CardTitle>
                     <CardDescription>Evolução da produtividade em kg/planta</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent ref={graficoProducaoMediaRef}>
                     {producaoMediaData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={280}>
                         <LineChart data={producaoMediaData}>
@@ -515,10 +713,21 @@ export default function RelatoriosPage() {
                 {/* Gráfico de Pizza - Aplicações por Categoria */}
                 <Card className="animate-fade-in" style={{ animationDelay: '600ms' }}>
                   <CardHeader>
-                    <CardTitle className="font-display text-lg">Aplicações por Categoria</CardTitle>
+                    <CardTitle className="font-display text-lg flex items-center justify-between">
+                      <span>Aplicações por Categoria</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleDownloadGrafico(graficoAplicacoesCategoriaRef, 'aplicacoes-por-categoria')}
+                        aria-label="Download gráfico Aplicações por Categoria"
+                      >
+                        <ImageDown className="w-4 h-4" />
+                      </Button>
+                    </CardTitle>
                     <CardDescription>Distribuição de produtos aplicados</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent ref={graficoAplicacoesCategoriaRef}>
                     {dadosFiltrados.aplicacoesPorCategoria.length > 0 ? (
                       <ResponsiveContainer width="100%" height={280}>
                         <PieChart>
@@ -558,10 +767,21 @@ export default function RelatoriosPage() {
                 {/* Gráfico de Volume Aplicado por Ano */}
                 <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
                   <CardHeader>
-                    <CardTitle className="font-display text-lg">Volume Aplicado por Ano</CardTitle>
+                    <CardTitle className="font-display text-lg flex items-center justify-between">
+                      <span>Volume Aplicado por Ano</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleDownloadGrafico(graficoVolumeAplicadoRef, 'volume-aplicado-por-ano')}
+                        aria-label="Download gráfico Volume Aplicado por Ano"
+                      >
+                        <ImageDown className="w-4 h-4" />
+                      </Button>
+                    </CardTitle>
                     <CardDescription>Total de produtos aplicados (kg + L)</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent ref={graficoVolumeAplicadoRef}>
                     {volumeAplicadoData.some(d => d.volume > 0) ? (
                       <ResponsiveContainer width="100%" height={280}>
                         <BarChart data={volumeAplicadoData}>
@@ -636,10 +856,21 @@ export default function RelatoriosPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <Card className="animate-fade-in" style={{ animationDelay: '1000ms' }}>
                       <CardHeader>
-                        <CardTitle className="font-display text-lg">Volume de Água por Ano (L) – Irrigação</CardTitle>
+                        <CardTitle className="font-display text-lg flex items-center justify-between">
+                          <span>Volume de Água por Ano (L) – Irrigação</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleDownloadGrafico(graficoIrrigacaoAnoRef, 'volume-agua-por-ano-irrigacao')}
+                            aria-label="Download gráfico Volume de Água por Ano – Irrigação"
+                          >
+                            <ImageDown className="w-4 h-4" />
+                          </Button>
+                        </CardTitle>
                         <CardDescription>Distribuição anual do volume de água aplicado</CardDescription>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent ref={graficoIrrigacaoAnoRef}>
                         {irrigacaoData.volumePorAno.length > 0 ? (
                           <ResponsiveContainer width="100%" height={280}>
                             <BarChart data={irrigacaoData.volumePorAno.map(d => ({ ano: d.ano.toString(), volume: d.volume }))}>
@@ -663,10 +894,21 @@ export default function RelatoriosPage() {
 
                     <Card className="animate-fade-in" style={{ animationDelay: '1050ms' }}>
                       <CardHeader>
-                        <CardTitle className="font-display text-lg">Volume de Água por Talhão (L) – Irrigação</CardTitle>
+                        <CardTitle className="font-display text-lg flex items-center justify-between">
+                          <span>Volume de Água por Talhão (L) – Irrigação</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => handleDownloadGrafico(graficoIrrigacaoTalhaoRef, 'volume-agua-por-talhao-irrigacao')}
+                            aria-label="Download gráfico Volume de Água por Talhão – Irrigação"
+                          >
+                            <ImageDown className="w-4 h-4" />
+                          </Button>
+                        </CardTitle>
                         <CardDescription>Distribuição do volume de água por talhão</CardDescription>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent ref={graficoIrrigacaoTalhaoRef}>
                         {irrigacaoData.volumePorTalhao.length > 0 ? (
                           <ResponsiveContainer width="100%" height={280}>
                             <BarChart data={irrigacaoData.volumePorTalhao.map(d => ({ talhao: d.talhaoNome, volume: d.volume }))}>
