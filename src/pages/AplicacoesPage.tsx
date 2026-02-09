@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Plus, Trash2, Droplets, Calendar, Package, FlaskConical } from 'lucide-react';
+import { Loader2, Plus, Trash2, Droplets, Calendar, Package, FlaskConical, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -35,7 +35,14 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useTalhoes } from '@/hooks/useMudas';
-import { useProdutos, useAplicacoes, useCreateAplicacao, useDeleteAplicacao } from '@/hooks/useAplicacoes';
+import {
+  useProdutos,
+  useAplicacoes,
+  useCreateAplicacao,
+  useDeleteAplicacao,
+  useUpdateAplicacao,
+  AplicacaoProduto,
+} from '@/hooks/useAplicacoes';
 import { aplicacaoSchema } from '@/lib/validations';
 
 const tipoBadgeColors: Record<string, string> = {
@@ -58,6 +65,7 @@ const tipoLabels: Record<string, string> = {
 
 export default function AplicacoesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [aplicacaoEmEdicao, setAplicacaoEmEdicao] = useState<AplicacaoProduto | null>(null);
   const [formData, setFormData] = useState({
     produto_id: '',
     talhao_id: '',
@@ -71,11 +79,49 @@ export default function AplicacoesPage() {
   const { data: aplicacoes, isLoading: aplicacoesLoading } = useAplicacoes();
   const createAplicacao = useCreateAplicacao();
   const deleteAplicacao = useDeleteAplicacao();
+  const updateAplicacao = useUpdateAplicacao();
 
   const isLoading = talhoesLoading || produtosLoading || aplicacoesLoading;
 
   const selectedProduto = produtos?.find(p => p.id === formData.produto_id);
   const selectedTalhao = talhoes?.find(t => t.id === formData.talhao_id);
+
+  const isSaving = createAplicacao.isPending || updateAplicacao.isPending;
+
+  const resetForm = () => {
+    setFormData({
+      produto_id: '',
+      talhao_id: '',
+      data: format(new Date(), 'yyyy-MM-dd'),
+      quantidade: '',
+      motivo: '',
+    });
+    setAplicacaoEmEdicao(null);
+  };
+
+  const handleNovaAplicacaoClick = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
+  const handleEditAplicacao = (aplicacao: AplicacaoProduto) => {
+    setAplicacaoEmEdicao(aplicacao);
+    setFormData({
+      produto_id: aplicacao.produto_id || '',
+      talhao_id: aplicacao.talhao_id || '',
+      data: aplicacao.data,
+      quantidade: aplicacao.quantidade.toString(),
+      motivo: aplicacao.motivo || '',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      resetForm();
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,26 +145,34 @@ export default function AplicacoesPage() {
     }
 
     try {
-      // Use the validated data which has correct types
-      await createAplicacao.mutateAsync({
-        produto_id: validationResult.data.produto_id,
-        talhao_id: validationResult.data.talhao_id,
-        data: validationResult.data.data,
-        quantidade: validationResult.data.quantidade,
-        motivo: validationResult.data.motivo,
-      });
+      if (aplicacaoEmEdicao) {
+        await updateAplicacao.mutateAsync({
+          id: aplicacaoEmEdicao.id,
+          produto_id: validationResult.data.produto_id,
+          talhao_id: validationResult.data.talhao_id,
+          data: validationResult.data.data,
+          quantidade: validationResult.data.quantidade,
+          motivo: validationResult.data.motivo,
+        });
 
-      toast.success('Aplicação registrada com sucesso!');
+        toast.success('Aplicação atualizada com sucesso!');
+      } else {
+        // Use the validated data which has correct types
+        await createAplicacao.mutateAsync({
+          produto_id: validationResult.data.produto_id,
+          talhao_id: validationResult.data.talhao_id,
+          data: validationResult.data.data,
+          quantidade: validationResult.data.quantidade,
+          motivo: validationResult.data.motivo,
+        });
+
+        toast.success('Aplicação registrada com sucesso!');
+      }
+
       setIsDialogOpen(false);
-      setFormData({
-        produto_id: '',
-        talhao_id: '',
-        data: format(new Date(), 'yyyy-MM-dd'),
-        quantidade: '',
-        motivo: '',
-      });
+      resetForm();
     } catch (error) {
-      toast.error('Erro ao registrar aplicação');
+      toast.error(aplicacaoEmEdicao ? 'Erro ao atualizar aplicação' : 'Erro ao registrar aplicação');
     }
   };
 
@@ -157,9 +211,9 @@ export default function AplicacoesPage() {
             </p>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={handleNovaAplicacaoClick}>
                 <Plus className="h-4 w-4" />
                 Nova Aplicação
               </Button>
@@ -168,10 +222,12 @@ export default function AplicacoesPage() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Droplets className="h-5 w-5 text-primary" />
-                  Registrar Aplicação
+                  {aplicacaoEmEdicao ? 'Editar Aplicação' : 'Registrar Aplicação'}
                 </DialogTitle>
                 <DialogDescription>
-                  Registre uma nova aplicação de produto no talhão
+                  {aplicacaoEmEdicao
+                    ? 'Atualize os dados da aplicação de produto selecionada'
+                    : 'Registre uma nova aplicação de produto no talhão'}
                 </DialogDescription>
               </DialogHeader>
 
@@ -275,8 +331,8 @@ export default function AplicacoesPage() {
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={createAplicacao.isPending}>
-                    {createAplicacao.isPending ? (
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       'Salvar'
@@ -385,7 +441,7 @@ export default function AplicacoesPage() {
                       <TableHead>Talhão</TableHead>
                       <TableHead>Quantidade</TableHead>
                       <TableHead>Motivo</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
+                      <TableHead className="w-[80px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -423,14 +479,25 @@ export default function AplicacoesPage() {
                             {aplicacao.motivo || '-'}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleDelete(aplicacao.id)}
-                              disabled={deleteAplicacao.isPending}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={() => handleEditAplicacao(aplicacao)}
+                                disabled={isSaving || deleteAplicacao.isPending}
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(aplicacao.id)}
+                                disabled={deleteAplicacao.isPending}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

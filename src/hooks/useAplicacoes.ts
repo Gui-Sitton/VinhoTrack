@@ -123,6 +123,47 @@ export function useCreateAplicacao() {
 }
 
 /**
+ * Mutation para atualizar uma aplicação de produto existente.
+ */
+export function useUpdateAplicacao() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (aplicacao: {
+      id: string;
+      produto_id: string;
+      talhao_id: string;
+      data: string;
+      quantidade: number;
+      motivo?: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('aplicacoes_produtos')
+        .update({
+          produto_id: aplicacao.produto_id,
+          talhao_id: aplicacao.talhao_id,
+          data: aplicacao.data,
+          quantidade: aplicacao.quantidade,
+          motivo: aplicacao.motivo ?? null,
+        })
+        .eq('id', aplicacao.id)
+        .select('id, produto_id, talhao_id, data, quantidade, motivo, created_at')
+        .single();
+
+      if (error) {
+        console.error('[useUpdateAplicacao] Erro ao atualizar aplicação:', error.message);
+        throw error;
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['aplicacoes'] });
+    },
+  });
+}
+
+/**
  * Mutation para deletar aplicação de produto.
  */
 export function useDeleteAplicacao() {
