@@ -133,12 +133,57 @@ export default function RelatoriosPage() {
       return { ano, total };
     });
 
-    const aplicacoesPorCategoria = categoriasParaFiltrar.map(categoria => {
-      const total = aplicacoesFiltradas
-        .filter(ap => ap.categoria === categoria)
-        .reduce((acc, ap) => acc + ap.quantidade, 0);
-      return { categoria, total };
-    }).filter(c => c.total > 0);
+    const aplicacoesPorCategoria = categoriasParaFiltrar
+      .map(categoria => {
+        const total = aplicacoesFiltradas
+          .filter(ap => ap.categoria === categoria)
+          .reduce((acc, ap) => acc + ap.quantidade, 0);
+        return { categoria, total };
+      })
+      .filter(c => c.total > 0);
+
+    const detalhamentoPorCategoria = categoriasParaFiltrar
+      .map((categoria) => {
+        const aplicacoesCategoria = aplicacoesFiltradas.filter(ap => ap.categoria === categoria);
+
+        if (aplicacoesCategoria.length === 0) {
+          return null;
+        }
+
+        const quantidadePorProduto = aplicacoesCategoria.reduce((acc, ap) => {
+          const chave = ap.produto;
+          if (!acc[chave]) {
+            acc[chave] = {
+              quantidade: 0,
+              unidade: ap.unidade,
+            };
+          }
+          acc[chave].quantidade += ap.quantidade;
+          return acc;
+        }, {} as Record<string, { quantidade: number; unidade: string }>);
+
+        const entradaMaisAplicada = Object.entries(quantidadePorProduto)
+          .sort((a, b) => b[1].quantidade - a[1].quantidade)[0];
+
+        if (!entradaMaisAplicada) {
+          return null;
+        }
+
+        const [produtoNome, dados] = entradaMaisAplicada;
+
+        return {
+          categoria,
+          produto: produtoNome,
+          quantidade: dados.quantidade,
+          unidade: dados.unidade,
+        };
+      })
+      .filter((item): item is {
+        categoria: AplicacaoProduto['categoria'];
+        produto: string;
+        quantidade: number;
+        unidade: string;
+      } => item !== null);
 
     return {
       producaoFiltrada,
@@ -149,6 +194,7 @@ export default function RelatoriosPage() {
       anoMaiorProdutividade,
       aplicacoesPorAno,
       aplicacoesPorCategoria,
+      detalhamentoPorCategoria,
     };
   }, [anosSelecionados, categoriasSelecionadas, producaoSafras, aplicacoesProdutos, anosParaExibir, categoriasParaExibir]);
 
@@ -166,6 +212,10 @@ export default function RelatoriosPage() {
     ano: a.ano.toString(),
     volume: a.total,
   }));
+
+  const adjuvantesAplicacoes = dadosFiltrados.aplicacoesFiltradas.filter(ap => ap.categoria === 'Adjuvante');
+  const totalAdjuvantesQuantidade = adjuvantesAplicacoes.reduce((acc, ap) => acc + ap.quantidade, 0);
+  const totalAplicacoesAdjuvantes = adjuvantesAplicacoes.length;
 
   return (
     <MainLayout>
@@ -691,11 +741,24 @@ export default function RelatoriosPage() {
                       </p>
                     )}
 
+                    {dadosFiltrados.detalhamentoPorCategoria.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-foreground leading-relaxed">
+                          <strong>📊 Detalhamento por categoria:</strong>
+                        </p>
+                        {dadosFiltrados.detalhamentoPorCategoria.map((detalhe) => (
+                          <p key={detalhe.categoria} className="text-foreground leading-relaxed">
+                            - {detalhe.categoria}: produto mais aplicado foi <strong>{detalhe.produto}</strong> com{' '}
+                            <strong>{detalhe.quantidade.toFixed(1)} kg/L</strong>
+                          </p>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Nota sobre Adjuvantes */}
-                    {dadosFiltrados.aplicacoesFiltradas.some(ap => ap.categoria === 'Adjuvante') && (
+                    {dadosFiltrados.aplicacoesFiltradas.length > 0 && totalAplicacoesAdjuvantes === 0 && (
                       <p className="text-foreground leading-relaxed">
-                        <strong>🧴 Adjuvantes:</strong> Os adjuvantes foram aplicados como complemento de calda, 
-                        não sendo considerados produtos de ação direta.
+                        <strong>🧴 Adjuvantes:</strong> Não foram utilizados adjuvantes no período selecionado.
                       </p>
                     )}
 
