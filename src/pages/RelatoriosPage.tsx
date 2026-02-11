@@ -1027,24 +1027,6 @@ export default function RelatoriosPage() {
                   </div>
                 </CardContent>
               </Card>
-<<<<<<< HEAD
-=======
-              {/* Bottom Export Buttons */}
-              <Card className="animate-fade-in" style={{ animationDelay: '1200ms' }}>
-                <CardContent className="py-6">
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <Button variant="outline" className="gap-2 w-full sm:w-auto" onClick={handleDownloadCSV}>
-                      <Download className="w-4 h-4" />
-                      Download CSV
-                    </Button>
-                    <Button className="gap-2 w-full sm:w-auto" onClick={handleDownloadPDF}>
-                      <FileText className="w-4 h-4" />
-                      Download PDF
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
->>>>>>> parent of 273a60b (Refactor pdf area wrap)
             </TabsContent>
 
             {/* ===== ABA: OBSERVAÇÕES ===== */}
