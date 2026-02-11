@@ -1,25 +1,39 @@
-import { useState, useMemo, useRef } from 'react';
-import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, ChevronUp, ImageDown, Download, FileText } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useObservacoesReport, ObservacaoReport } from '@/hooks/useObservacoesReport';
 import { useAplicacoesProdutos } from '@/hooks/useReportData';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Area, AreaChart, ComposedChart, Scatter,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  Area,
+  AreaChart,
+  ComposedChart,
+  Scatter,
 } from 'recharts';
 import { cn } from '@/lib/utils';
-import { gerarNomeArquivo, escaparCSV, downloadCSV, downloadPDF, downloadChartImage } from '@/lib/exportUtils';
 
 const FASE_COLORS: Record<string, string> = {
-  'Dormência': '#6b7280', 'Brotação': '#84cc16', 'Floração': '#f472b6',
-  'Frutificação': '#a78bfa', 'Desenvolvimento dos frutos': '#34d399',
-  'Véraison (início da maturação)': '#f59e0b', 'Maturação': '#ef4444',
-  'Colheita': '#8b5cf6', 'Crescimento vegetativo': '#10b981',
+  'Dormência': '#6b7280',
+  'Brotação': '#84cc16',
+  'Floração': '#f472b6',
+  'Frutificação': '#a78bfa',
+  'Desenvolvimento dos frutos': '#34d399',
+  'Véraison (início da maturação)': '#f59e0b',
+  'Maturação': '#ef4444',
+  'Colheita': '#8b5cf6',
+  'Crescimento vegetativo': '#10b981',
 };
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6', '#f472b6', '#6b7280', '#84cc16', '#a78bfa'];
@@ -40,8 +54,13 @@ const tooltipStyle = {
 
 export default function ObservacoesReport() {
   const {
-    observacoes, resumo, alturaEvolucao, fasesDistribuicao,
-    alertasCriticos, mudasComObservacoes, isLoading,
+    observacoes,
+    resumo,
+    alturaEvolucao,
+    fasesDistribuicao,
+    alertasCriticos,
+    mudasComObservacoes,
+    isLoading,
   } = useObservacoesReport();
 
   const { data: aplicacoes } = useAplicacoesProdutos();
@@ -49,12 +68,7 @@ export default function ObservacoesReport() {
   const [mudaSelecionada, setMudaSelecionada] = useState<string>('');
   const [showAllAlertas, setShowAllAlertas] = useState(false);
 
-  // Refs
-  const reportRef = useRef<HTMLDivElement>(null);
-  const graficoAlturaRef = useRef<HTMLDivElement>(null);
-  const graficoFasesRef = useRef<HTMLDivElement>(null);
-  const graficoComparativoRef = useRef<HTMLDivElement>(null);
-
+  // Histórico da muda selecionada
   const historicoMuda = useMemo(() => {
     if (!mudaSelecionada) return [];
     return observacoes
@@ -62,14 +76,19 @@ export default function ObservacoesReport() {
       .sort((a, b) => b.data.localeCompare(a.data));
   }, [mudaSelecionada, observacoes]);
 
+  // Dados para seção comparativa Manejo × Desenvolvimento
   const dadosComparativos = useMemo(() => {
     if (alturaEvolucao.length === 0) return [];
+
+    // Mapear aplicações por data
     const aplicacoesPorData: Record<string, number> = {};
     if (aplicacoes) {
       aplicacoes.forEach(ap => {
         aplicacoesPorData[ap.data] = (aplicacoesPorData[ap.data] || 0) + 1;
       });
     }
+
+    // Combinar dados de altura com aplicações
     return alturaEvolucao.map(item => ({
       data: formatDateShort(item.data),
       dataFull: item.data,
@@ -79,29 +98,6 @@ export default function ObservacoesReport() {
   }, [alturaEvolucao, aplicacoes]);
 
   const alertasExibidos = showAllAlertas ? alertasCriticos : alertasCriticos.slice(0, 5);
-
-  const handleDownloadCSV = () => {
-    const linhas: string[] = [];
-    linhas.push([
-      'data', 'muda_codigo', 'muda_linha', 'muda_planta', 'talhao',
-      'fase_fenologica', 'altura_cm', 'observacoes',
-    ].join(','));
-
-    observacoes.forEach(o => {
-      linhas.push([
-        escaparCSV(o.data), escaparCSV(o.muda_codigo), escaparCSV(o.muda_linha),
-        escaparCSV(o.muda_planta), escaparCSV(o.talhao_nome),
-        escaparCSV(o.fase_fenologica), escaparCSV(o.altura_cm), escaparCSV(o.observacoes),
-      ].join(','));
-    });
-
-    downloadCSV(linhas, gerarNomeArquivo('observations-report', 'csv'));
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!reportRef.current) return;
-    await downloadPDF(reportRef.current, gerarNomeArquivo('observations-report', 'pdf'));
-  };
 
   if (isLoading) {
     return (
@@ -129,7 +125,7 @@ export default function ObservacoesReport() {
   }
 
   return (
-    <div className="space-y-6" ref={reportRef}>
+    <div className="space-y-6">
       {/* Indicadores Rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="animate-fade-in" style={{ animationDelay: '0ms' }}>
@@ -199,19 +195,10 @@ export default function ObservacoesReport() {
         {/* Evolução da Altura */}
         <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
           <CardHeader>
-            <CardTitle className="font-display text-lg flex items-center justify-between">
-              <span>📈 Altura Média ao Longo do Tempo</span>
-              <Button
-                variant="ghost" size="icon" className="h-7 w-7"
-                onClick={() => downloadChartImage(graficoAlturaRef, 'altura-media-tempo')}
-                aria-label="Download gráfico Altura Média"
-              >
-                <ImageDown className="w-4 h-4" />
-              </Button>
-            </CardTitle>
+            <CardTitle className="font-display text-lg">📈 Altura Média ao Longo do Tempo</CardTitle>
             <CardDescription>Evolução da altura média das mudas (cm)</CardDescription>
           </CardHeader>
-          <CardContent ref={graficoAlturaRef}>
+          <CardContent>
             {alturaEvolucao.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
                 <AreaChart data={alturaEvolucao.map(d => ({
@@ -227,8 +214,18 @@ export default function ObservacoesReport() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="data" className="text-sm" />
                   <YAxis className="text-sm" unit=" cm" />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value} cm`, 'Altura média']} />
-                  <Area type="monotone" dataKey="altura" stroke="#10b981" strokeWidth={2} fill="url(#alturaGradient)" dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(value: number) => [`${value} cm`, 'Altura média']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="altura"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#alturaGradient)"
+                    dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -242,19 +239,10 @@ export default function ObservacoesReport() {
         {/* Distribuição de Fases */}
         <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
           <CardHeader>
-            <CardTitle className="font-display text-lg flex items-center justify-between">
-              <span>🌱 Distribuição das Fases Fenológicas</span>
-              <Button
-                variant="ghost" size="icon" className="h-7 w-7"
-                onClick={() => downloadChartImage(graficoFasesRef, 'distribuicao-fases-fenologicas')}
-                aria-label="Download gráfico Fases Fenológicas"
-              >
-                <ImageDown className="w-4 h-4" />
-              </Button>
-            </CardTitle>
+            <CardTitle className="font-display text-lg">🌱 Distribuição das Fases Fenológicas</CardTitle>
             <CardDescription>Contagem de observações por fase</CardDescription>
           </CardHeader>
-          <CardContent ref={graficoFasesRef}>
+          <CardContent>
             {fasesDistribuicao.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={fasesDistribuicao.map(d => ({
@@ -268,7 +256,8 @@ export default function ObservacoesReport() {
                   <Tooltip
                     contentStyle={tooltipStyle}
                     formatter={(value: number, _: any, props: any) => [
-                      `${value} observações`, props.payload.faseFull,
+                      `${value} observações`,
+                      props.payload.faseFull,
                     ]}
                   />
                   <Bar dataKey="count" radius={[0, 4, 4, 0]}>
@@ -302,7 +291,10 @@ export default function ObservacoesReport() {
           <CardContent>
             <div className="space-y-3">
               {alertasExibidos.map((alerta) => (
-                <div key={alerta.id} className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div
+                  key={alerta.id}
+                  className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800"
+                >
                   <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -327,9 +319,15 @@ export default function ObservacoesReport() {
                 className="mt-3 flex items-center gap-1 text-sm text-primary hover:underline"
               >
                 {showAllAlertas ? (
-                  <><ChevronUp className="w-4 h-4" /> Mostrar menos</>
+                  <>
+                    <ChevronUp className="w-4 h-4" />
+                    Mostrar menos
+                  </>
                 ) : (
-                  <><ChevronDown className="w-4 h-4" /> Ver todos ({alertasCriticos.length})</>
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    Ver todos ({alertasCriticos.length})
+                  </>
                 )}
               </button>
             )}
@@ -337,23 +335,16 @@ export default function ObservacoesReport() {
         </Card>
       )}
 
-      {/* Seção Comparativa */}
+      {/* Seção Comparativa - Manejo × Desenvolvimento */}
       {dadosComparativos.length > 0 && (
         <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
           <CardHeader>
-            <CardTitle className="font-display text-lg flex items-center justify-between">
-              <span>🌿 Manejo × Desenvolvimento</span>
-              <Button
-                variant="ghost" size="icon" className="h-7 w-7"
-                onClick={() => downloadChartImage(graficoComparativoRef, 'manejo-desenvolvimento')}
-                aria-label="Download gráfico Manejo × Desenvolvimento"
-              >
-                <ImageDown className="w-4 h-4" />
-              </Button>
-            </CardTitle>
-            <CardDescription>Relação entre aplicações de produtos e evolução de altura das mudas</CardDescription>
+            <CardTitle className="font-display text-lg">🌿 Manejo × Desenvolvimento</CardTitle>
+            <CardDescription>
+              Relação entre aplicações de produtos e evolução de altura das mudas
+            </CardDescription>
           </CardHeader>
-          <CardContent ref={graficoComparativoRef}>
+          <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <ComposedChart data={dadosComparativos}>
                 <defs>
@@ -373,8 +364,22 @@ export default function ObservacoesReport() {
                     return [`${value}`, 'Aplicações'];
                   }}
                 />
-                <Area yAxisId="left" type="monotone" dataKey="alturaMedia" stroke="#10b981" strokeWidth={2} fill="url(#compAlturaGradient)" name="alturaMedia" />
-                <Scatter yAxisId="right" dataKey="aplicacoes" fill="#7c3aed" name="aplicacoes" shape="diamond" />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="alturaMedia"
+                  stroke="#10b981"
+                  strokeWidth={2}
+                  fill="url(#compAlturaGradient)"
+                  name="alturaMedia"
+                />
+                <Scatter
+                  yAxisId="right"
+                  dataKey="aplicacoes"
+                  fill="#7c3aed"
+                  name="aplicacoes"
+                  shape="diamond"
+                />
               </ComposedChart>
             </ResponsiveContainer>
             <p className="text-xs text-muted-foreground mt-2 italic">
@@ -409,16 +414,35 @@ export default function ObservacoesReport() {
           {mudaSelecionada && historicoMuda.length > 0 ? (
             <div className="space-y-3">
               {historicoMuda.map((obs, index) => (
-                <div key={obs.id} className={cn('relative pl-6 pb-4', index < historicoMuda.length - 1 && 'border-l-2 border-border ml-2')}>
+                <div
+                  key={obs.id}
+                  className={cn(
+                    'relative pl-6 pb-4',
+                    index < historicoMuda.length - 1 && 'border-l-2 border-border ml-2'
+                  )}
+                >
+                  {/* Timeline dot */}
                   <div className="absolute -left-[5px] top-1 w-3 h-3 rounded-full bg-primary border-2 border-background" />
+                  
                   <div className="bg-muted/50 rounded-lg p-4 ml-2">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className="text-sm font-semibold text-foreground">{formatDate(obs.data)}</span>
-                      <Badge variant="outline" className="text-xs" style={{ borderColor: FASE_COLORS[obs.fase_fenologica] || '#6b7280', color: FASE_COLORS[obs.fase_fenologica] || '#6b7280' }}>
+                      <span className="text-sm font-semibold text-foreground">
+                        {formatDate(obs.data)}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className="text-xs"
+                        style={{
+                          borderColor: FASE_COLORS[obs.fase_fenologica] || '#6b7280',
+                          color: FASE_COLORS[obs.fase_fenologica] || '#6b7280',
+                        }}
+                      >
                         {obs.fase_fenologica}
                       </Badge>
                       {obs.altura_cm !== null && (
-                        <Badge variant="secondary" className="text-xs">{obs.altura_cm} cm</Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {obs.altura_cm} cm
+                        </Badge>
                       )}
                     </div>
                     {obs.observacoes && (
@@ -433,7 +457,9 @@ export default function ObservacoesReport() {
           ) : (
             <div className="text-center py-8">
               <Search className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground text-sm">Selecione uma muda acima para visualizar seu histórico completo.</p>
+              <p className="text-muted-foreground text-sm">
+                Selecione uma muda acima para visualizar seu histórico completo.
+              </p>
             </div>
           )}
         </CardContent>
@@ -443,7 +469,9 @@ export default function ObservacoesReport() {
       <Card className="animate-fade-in" style={{ animationDelay: '900ms' }}>
         <CardHeader>
           <CardTitle className="font-display text-lg">Resumo de Observações</CardTitle>
-          <CardDescription>Análise automática das observações registradas</CardDescription>
+          <CardDescription>
+            Análise automática das observações registradas
+          </CardDescription>
         </CardHeader>
         <CardContent className="prose prose-sm max-w-none">
           <div className="bg-muted/50 rounded-lg p-6 space-y-4">
@@ -451,7 +479,11 @@ export default function ObservacoesReport() {
               <strong>🌱 Observações Registradas:</strong> Foram registradas{' '}
               <strong>{resumo.totalObservacoes} observações</strong>
               {resumo.periodoInicio && resumo.periodoFim && (
-                <> entre <strong>{formatDate(resumo.periodoInicio)}</strong> e <strong>{formatDate(resumo.periodoFim)}</strong></>
+                <>
+                  {' '}entre{' '}
+                  <strong>{formatDate(resumo.periodoInicio)}</strong> e{' '}
+                  <strong>{formatDate(resumo.periodoFim)}</strong>
+                </>
               )}
               , com altura média de <strong>{resumo.alturaMedia.toFixed(1)} cm</strong> e
               predominância da fase <strong>{resumo.fasePredominante}</strong>.
@@ -485,22 +517,6 @@ export default function ObservacoesReport() {
                 A ordenação segue exclusivamente a data real do evento.
               </p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Bottom Export Buttons */}
-      <Card className="animate-fade-in" style={{ animationDelay: '1000ms' }}>
-        <CardContent className="py-6">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button variant="outline" className="gap-2 w-full sm:w-auto" onClick={handleDownloadCSV}>
-              <Download className="w-4 h-4" />
-              Download CSV
-            </Button>
-            <Button className="gap-2 w-full sm:w-auto" onClick={handleDownloadPDF}>
-              <FileText className="w-4 h-4" />
-              Download PDF
-            </Button>
           </div>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet, ImageDown, Download, FileText } from 'lucide-react';
+import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet, ImageDown } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +44,6 @@ export default function RelatoriosPage() {
   const [activeTab, setActiveTab] = useState('aplicacoes');
 
   const relatorioRef = useRef<HTMLDivElement | null>(null);
-  const pdfContentRef = useRef<HTMLDivElement | null>(null);
   const graficoProducaoAnoRef = useRef<HTMLDivElement | null>(null);
   const graficoProducaoMediaRef = useRef<HTMLDivElement | null>(null);
   const graficoAplicacoesCategoriaRef = useRef<HTMLDivElement | null>(null);
@@ -241,9 +240,9 @@ export default function RelatoriosPage() {
   };
 
   const handleDownloadPDF = async () => {
-    if (!pdfContentRef.current) return;
+    if (!relatorioRef.current) return;
 
-    const elemento = pdfContentRef.current;
+    const elemento = relatorioRef.current;
     const canvas = await html2canvas(elemento, { scale: 2 });
     const imgData = canvas.toDataURL('image/png');
 
@@ -251,14 +250,7 @@ export default function RelatoriosPage() {
     const larguraPdf = pdf.internal.pageSize.getWidth();
     const alturaPdf = (canvas.height * larguraPdf) / canvas.width;
 
-    let posicaoY = 0;
-    const alturaPagina = pdf.internal.pageSize.getHeight();
-    while (posicaoY < alturaPdf) {
-      if (posicaoY > 0) pdf.addPage();
-      pdf.addImage(imgData, 'PNG', 0, -posicaoY, larguraPdf, alturaPdf);
-      posicaoY += alturaPagina;
-    }
-
+    pdf.addImage(imgData, 'PNG', 0, 0, larguraPdf, alturaPdf);
     pdf.save(gerarNomeArquivo('report', 'pdf'));
   };
 
@@ -568,8 +560,6 @@ export default function RelatoriosPage() {
                 </Card>
               )}
 
-              {/* PDF content starts here */}
-              <div ref={pdfContentRef} className="space-y-6">
               {/* Indicadores Rápidos */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card className="animate-fade-in" style={{ animationDelay: '0ms' }}>
@@ -1034,22 +1024,6 @@ export default function RelatoriosPage() {
                         * Relatório gerado automaticamente com base nos dados registrados no banco de dados.
                       </p>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-              </div>{/* end pdfContentRef */}
-              {/* Bottom Export Buttons */}
-              <Card className="animate-fade-in" style={{ animationDelay: '1200ms' }}>
-                <CardContent className="py-6">
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <Button variant="outline" className="gap-2 w-full sm:w-auto" onClick={handleDownloadCSV}>
-                      <Download className="w-4 h-4" />
-                      Download CSV
-                    </Button>
-                    <Button className="gap-2 w-full sm:w-auto" onClick={handleDownloadPDF}>
-                      <FileText className="w-4 h-4" />
-                      Download PDF
-                    </Button>
                   </div>
                 </CardContent>
               </Card>

@@ -1,6 +1,5 @@
+import { MudaStatus } from '@/data/mockData';
 import { cn } from '@/lib/utils';
-
-type MudaStatus = 'Ativa' | 'Atenção' | 'Falha';
 
 interface StatusBadgeProps {
   status: MudaStatus;
