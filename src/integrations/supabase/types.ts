@@ -59,6 +59,41 @@ export type Database = {
           },
         ]
       }
+      fases_fenologicas_mudas: {
+        Row: {
+          created_at: string | null
+          data_fim: string | null
+          data_inicio: string
+          fase: string
+          id: string
+          muda_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          data_fim?: string | null
+          data_inicio: string
+          fase: string
+          id?: string
+          muda_id: string
+        }
+        Update: {
+          created_at?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          fase?: string
+          id?: string
+          muda_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fases_fenologicas_mudas_muda_id_fkey"
+            columns: ["muda_id"]
+            isOneToOne: false
+            referencedRelation: "mudas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       irrigacoes_talhoes: {
         Row: {
           created_at: string

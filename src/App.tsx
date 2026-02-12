@@ -14,6 +14,7 @@ import RelatoriosPage from "./pages/RelatoriosPage";
 import AplicacoesPage from "./pages/AplicacoesPage";
 import IrrigacoesPage from "./pages/IrrigacoesPage";
 import AuthPage from "./pages/AuthPage";
+import ReferenciasFenologicasPage from "./pages/ReferenciasFenologicasPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/aplicacoes" element={<ProtectedRoute><AplicacoesPage /></ProtectedRoute>} />
             <Route path="/irrigacoes" element={<ProtectedRoute><IrrigacoesPage /></ProtectedRoute>} />
             <Route path="/relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
+            <Route path="/referencias-fenologicas" element={<ProtectedRoute><ReferenciasFenologicasPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

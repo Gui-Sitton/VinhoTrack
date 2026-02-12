@@ -1,5 +1,6 @@
-import { MudaStatus } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+
+type MudaStatus = 'Ativa' | 'Atenção' | 'Falha';
 
 interface StatusBadgeProps {
   status: MudaStatus;
@@ -10,7 +11,7 @@ export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
   const baseClasses = 'status-badge';
   const sizeClasses = size === 'sm' ? 'text-[10px] px-2 py-0.5' : '';
   
-  const statusClasses = {
+  const statusClasses: Record<MudaStatus, string> = {
     'Ativa': 'status-active',
     'Atenção': 'status-attention',
     'Falha': 'status-failure',
