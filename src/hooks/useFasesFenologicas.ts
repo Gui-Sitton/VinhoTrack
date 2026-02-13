@@ -22,7 +22,7 @@ export function useFasesFenologicasByMuda(mudaId: string | undefined) {
         .from('fases_fenologicas_mudas')
         .select('id, muda_id, fase, data_inicio, data_fim, fase_cientifica, BBCH_aproximado, descricao_cientifica')
         .eq('muda_id', mudaId)
-        .order('data_inicio', { ascending: true });
+        .order('data_inicio', { ascending: false });
 
       if (error) {
         console.error('[useFasesFenologicasByMuda] Erro:', error.message);
