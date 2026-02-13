@@ -61,26 +61,35 @@ export type Database = {
       }
       fases_fenologicas_mudas: {
         Row: {
+          BBCH_aproximado: string | null
           created_at: string | null
           data_fim: string | null
           data_inicio: string
+          descricao_cientifica: string | null
           fase: string
+          fase_cientifica: string | null
           id: string
           muda_id: string
         }
         Insert: {
+          BBCH_aproximado?: string | null
           created_at?: string | null
           data_fim?: string | null
           data_inicio: string
+          descricao_cientifica?: string | null
           fase: string
+          fase_cientifica?: string | null
           id?: string
           muda_id: string
         }
         Update: {
+          BBCH_aproximado?: string | null
           created_at?: string | null
           data_fim?: string | null
           data_inicio?: string
+          descricao_cientifica?: string | null
           fase?: string
+          fase_cientifica?: string | null
           id?: string
           muda_id?: string
         }

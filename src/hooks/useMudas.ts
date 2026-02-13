@@ -157,7 +157,8 @@ export function useMudaById(id: string | undefined) {
         .from('observacoes_mudas')
         .select('id, data, fase_fenologica, altura_cm, observacoes, muda_id, created_at')
         .eq('muda_id', id)
-        .order('data', { ascending: false });
+        .order('data', { ascending: false })
+        .order('altura_cm', { ascending: false });
 
       if (obsError) {
         console.error('[useMudaById] Erro ao buscar observações:', obsError.message);
