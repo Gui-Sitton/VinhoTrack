@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, MapPin, Calendar, FileText, Loader2 } from 'lucide-react';
 import { ObservacaoMudaItem } from '@/components/observacoes/ObservacaoMudaItem';
+import { HistoricoFenologico } from '@/components/mudas/HistoricoFenologico';
 const statusDisplayMap: Record<MudaStatus, string> = {
   ativa: 'Ativa',
   atencao: 'Atenção',
@@ -146,8 +147,13 @@ export default function MudaDetailPage() {
           </Card>
         </div>
 
+        {/* Histórico Fenológico */}
+        <div className="mb-8 animate-fade-in" style={{ animationDelay: '500ms' }}>
+          <HistoricoFenologico mudaId={muda.id} />
+        </div>
+
         {/* Histórico de Observações */}
-        <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
+        <Card className="animate-fade-in" style={{ animationDelay: '600ms' }}>
           <CardHeader>
             <CardTitle className="font-display">Histórico de Observações</CardTitle>
           </CardHeader>
