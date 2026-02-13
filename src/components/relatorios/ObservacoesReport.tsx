@@ -3,7 +3,7 @@ import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useObservacoesReport, ObservacaoReport } from '@/hooks/useObservacoesReport';
+import { useObservacoesReport, ObservacaoReport, FaseFenologicaReport } from '@/hooks/useObservacoesReport';
 import { useAplicacoesProdutos } from '@/hooks/useReportData';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -60,6 +60,7 @@ export default function ObservacoesReport() {
     fasesDistribuicao,
     alertasCriticos,
     mudasComObservacoes,
+    fasesAtuais,
     isLoading,
   } = useObservacoesReport();
 
@@ -80,7 +81,7 @@ export default function ObservacoesReport() {
   const dadosComparativos = useMemo(() => {
     if (alturaEvolucao.length === 0) return [];
 
-    // Mapear aplicações por data
+    // Mapear aplicações por data com altura associada
     const aplicacoesPorData: Record<string, number> = {};
     if (aplicacoes) {
       aplicacoes.forEach(ap => {
@@ -196,7 +197,7 @@ export default function ObservacoesReport() {
         <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
           <CardHeader>
             <CardTitle className="font-display text-lg">📈 Altura Média ao Longo do Tempo</CardTitle>
-            <CardDescription>Evolução da altura média das mudas (cm)</CardDescription>
+            <CardDescription>Evolução da altura com base em fases fenológicas e observações</CardDescription>
           </CardHeader>
           <CardContent>
             {alturaEvolucao.length > 0 ? (
@@ -240,7 +241,7 @@ export default function ObservacoesReport() {
         <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
           <CardHeader>
             <CardTitle className="font-display text-lg">🌱 Distribuição das Fases Fenológicas</CardTitle>
-            <CardDescription>Contagem de observações por fase</CardDescription>
+            <CardDescription>Contagem de mudas por fase atual (fases_fenologicas_mudas)</CardDescription>
           </CardHeader>
           <CardContent>
             {fasesDistribuicao.length > 0 ? (
@@ -256,7 +257,7 @@ export default function ObservacoesReport() {
                   <Tooltip
                     contentStyle={tooltipStyle}
                     formatter={(value: number, _: any, props: any) => [
-                      `${value} observações`,
+                      `${value} mudas`,
                       props.payload.faseFull,
                     ]}
                   />
@@ -485,13 +486,23 @@ export default function ObservacoesReport() {
                   <strong>{formatDate(resumo.periodoFim)}</strong>
                 </>
               )}
-              , com altura média de <strong>{resumo.alturaMedia.toFixed(1)} cm</strong> e
-              predominância da fase <strong>{resumo.fasePredominante}</strong>.
+              . A altura média atual (baseada na observação mais recente de cada muda) é de{' '}
+              <strong>{resumo.alturaMedia.toFixed(1)} cm</strong>.
+            </p>
+
+            <p className="text-foreground leading-relaxed">
+              <strong>🌿 Fase Predominante:</strong> Com base nas fases fenológicas atuais
+              (registros com data_fim em aberto), a fase predominante é{' '}
+              <strong>{resumo.fasePredominante}</strong>
+              {fasesDistribuicao.length > 0 && (
+                <>, com {fasesDistribuicao[0]?.count} mudas nesta fase</>
+              )}
+              .
             </p>
 
             <p className="text-foreground leading-relaxed">
               <strong>👁️ Cobertura:</strong> Das {resumo.totalMudas} mudas cadastradas,{' '}
-              <strong>{resumo.mudasObservadas}</strong> ({((resumo.mudasObservadas / resumo.totalMudas) * 100).toFixed(1)}%)
+              <strong>{resumo.mudasObservadas}</strong> ({resumo.totalMudas > 0 ? ((resumo.mudasObservadas / resumo.totalMudas) * 100).toFixed(1) : 0}%)
               possuem ao menos uma observação registrada.
             </p>
 
@@ -505,16 +516,17 @@ export default function ObservacoesReport() {
 
             {dadosComparativos.some(d => d.aplicacoes > 0) && (
               <p className="text-foreground leading-relaxed">
-                <strong>🌿 Manejo × Desenvolvimento:</strong> A seção comparativa permite identificar
-                correlações entre as aplicações de produtos e a evolução do crescimento das mudas,
-                auxiliando na avaliação da eficácia do manejo fitossanitário e nutricional.
+                <strong>📊 Manejo × Desenvolvimento:</strong> A análise comparativa correlaciona
+                as aplicações de produtos com a evolução de altura das mudas, considerando alturas
+                reais das observações e alturas estimadas por fase fenológica.
               </p>
             )}
 
             <div className="border-t border-border pt-4 mt-4">
               <p className="text-muted-foreground text-sm italic">
-                * Relatório gerado automaticamente com base nas observações registradas no banco de dados.
-                A ordenação segue exclusivamente a data real do evento.
+                * Altura média calculada pela observação mais recente de cada muda.
+                Fase predominante baseada em fases_fenologicas_mudas (data_fim IS NULL).
+                Distribuição de fases baseada exclusivamente na tabela de fases fenológicas.
               </p>
             </div>
           </div>
