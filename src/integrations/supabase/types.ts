@@ -61,6 +61,7 @@ export type Database = {
       }
       fases_fenologicas_mudas: {
         Row: {
+          altura_media_cm: number | null
           BBCH_aproximado: string | null
           created_at: string | null
           data_fim: string | null
@@ -72,6 +73,7 @@ export type Database = {
           muda_id: string
         }
         Insert: {
+          altura_media_cm?: number | null
           BBCH_aproximado?: string | null
           created_at?: string | null
           data_fim?: string | null
@@ -83,6 +85,7 @@ export type Database = {
           muda_id: string
         }
         Update: {
+          altura_media_cm?: number | null
           BBCH_aproximado?: string | null
           created_at?: string | null
           data_fim?: string | null

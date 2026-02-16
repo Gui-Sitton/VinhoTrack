@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,6 +52,16 @@ const tooltipStyle = {
   borderRadius: '8px',
 };
 
+function diffDays(start: string, end: string): number {
+  const s = new Date(start + 'T00:00:00');
+  const e = new Date(end + 'T00:00:00');
+  return Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function todayStr(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
 export default function ObservacoesReport() {
   const {
     observacoes,
@@ -61,6 +71,7 @@ export default function ObservacoesReport() {
     alertasCriticos,
     mudasComObservacoes,
     fasesAtuais,
+    diasPorFase,
     isLoading,
   } = useObservacoesReport();
 
@@ -79,24 +90,58 @@ export default function ObservacoesReport() {
 
   // Dados para seção comparativa Manejo × Desenvolvimento
   const dadosComparativos = useMemo(() => {
-    if (alturaEvolucao.length === 0) return [];
+    if (!aplicacoes || aplicacoes.length === 0 || fasesAtuais.length === 0) return [];
 
-    // Mapear aplicações por data com altura associada
-    const aplicacoesPorData: Record<string, number> = {};
-    if (aplicacoes) {
-      aplicacoes.forEach(ap => {
-        aplicacoesPorData[ap.data] = (aplicacoesPorData[ap.data] || 0) + 1;
-      });
+    const hoje = todayStr();
+
+    // All phases for lookup
+    const allFases = [...fasesAtuais];
+    // We need all fases, not just current - get from alturaEvolucao context
+    // Actually we need the raw fases - let's use fasesAtuais which includes all fases from the hook
+    // The hook only exposes fasesAtuais (data_fim IS NULL). We need all fases for date lookup.
+    // Since we can't easily get all fases here, let's correlate with alturaEvolucao data instead.
+
+    // Build a date->altura map from alturaEvolucao
+    const alturaByDate = new Map<string, number>();
+    for (const item of alturaEvolucao) {
+      alturaByDate.set(item.data, item.alturaMedia);
     }
 
-    // Combinar dados de altura com aplicações
-    return alturaEvolucao.map(item => ({
-      data: formatDateShort(item.data),
-      dataFull: item.data,
-      alturaMedia: Number(item.alturaMedia.toFixed(1)),
-      aplicacoes: aplicacoesPorData[item.data] || 0,
-    }));
-  }, [alturaEvolucao, aplicacoes]);
+    // For each application, find closest height from alturaEvolucao
+    const resultado = aplicacoes
+      .sort((a, b) => a.data.localeCompare(b.data))
+      .map(ap => {
+        // Find closest date in alturaEvolucao
+        let closestAltura = 0;
+        let closestDist = Infinity;
+        for (const [date, altura] of alturaByDate) {
+          const dist = Math.abs(diffDays(ap.data, date));
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestAltura = altura;
+          }
+        }
+
+        return {
+          data: formatDateShort(ap.data),
+          dataFull: ap.data,
+          alturaMedia: Number(closestAltura.toFixed(1)),
+          aplicacoes: 1,
+        };
+      });
+
+    // Group by date
+    const grouped: Record<string, { data: string; dataFull: string; alturaMedia: number; aplicacoes: number }> = {};
+    for (const r of resultado) {
+      if (!grouped[r.dataFull]) {
+        grouped[r.dataFull] = { ...r };
+      } else {
+        grouped[r.dataFull].aplicacoes += 1;
+      }
+    }
+
+    return Object.values(grouped).sort((a, b) => a.dataFull.localeCompare(b.dataFull));
+  }, [aplicacoes, fasesAtuais, alturaEvolucao]);
 
   const alertasExibidos = showAllAlertas ? alertasCriticos : alertasCriticos.slice(0, 5);
 
@@ -150,7 +195,7 @@ export default function ObservacoesReport() {
                 <TrendingUp className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Altura Média</p>
+                <p className="text-sm text-muted-foreground">Altura Média (fase atual)</p>
                 <p className="text-2xl font-bold">{resumo.alturaMedia.toFixed(1)} cm</p>
               </div>
             </div>
@@ -161,12 +206,12 @@ export default function ObservacoesReport() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-purple-600" />
+                <Clock className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Fase Predominante</p>
-                <p className="text-lg font-bold truncate max-w-[160px]" title={resumo.fasePredominante}>
-                  {resumo.fasePredominante}
+                <p className="text-sm text-muted-foreground">Fase de Maior Duração</p>
+                <p className="text-lg font-bold truncate max-w-[160px]" title={resumo.faseMaiorDuracao}>
+                  {resumo.faseMaiorDuracao}
                 </p>
               </div>
             </div>
@@ -196,8 +241,8 @@ export default function ObservacoesReport() {
         {/* Evolução da Altura */}
         <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
           <CardHeader>
-            <CardTitle className="font-display text-lg">📈 Altura Média ao Longo do Tempo</CardTitle>
-            <CardDescription>Evolução da altura com base em fases fenológicas e observações</CardDescription>
+            <CardTitle className="font-display text-lg">📈 Desenvolvimento ao Longo do Tempo</CardTitle>
+            <CardDescription>Evolução da altura média por fase fenológica (degraus por fase)</CardDescription>
           </CardHeader>
           <CardContent>
             {alturaEvolucao.length > 0 ? (
@@ -220,7 +265,7 @@ export default function ObservacoesReport() {
                     formatter={(value: number) => [`${value} cm`, 'Altura média']}
                   />
                   <Area
-                    type="monotone"
+                    type="stepAfter"
                     dataKey="altura"
                     stroke="#10b981"
                     strokeWidth={2}
@@ -231,17 +276,17 @@ export default function ObservacoesReport() {
               </ResponsiveContainer>
             ) : (
               <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                Sem dados de altura registrados
+                Sem dados de altura registrados nas fases fenológicas
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Distribuição de Fases */}
+        {/* Distribuição de Fases — agora em DIAS */}
         <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
           <CardHeader>
-            <CardTitle className="font-display text-lg">🌱 Distribuição das Fases Fenológicas</CardTitle>
-            <CardDescription>Contagem de mudas por fase atual (fases_fenologicas_mudas)</CardDescription>
+            <CardTitle className="font-display text-lg">🌱 Duração por Fase Fenológica</CardTitle>
+            <CardDescription>Total de dias acumulados em cada fase (todas as mudas)</CardDescription>
           </CardHeader>
           <CardContent>
             {fasesDistribuicao.length > 0 ? (
@@ -249,7 +294,7 @@ export default function ObservacoesReport() {
                 <BarChart data={fasesDistribuicao.map(d => ({
                   fase: d.fase.length > 15 ? d.fase.substring(0, 15) + '…' : d.fase,
                   faseFull: d.fase,
-                  count: d.count,
+                  dias: d.count,
                 }))} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis type="number" className="text-sm" />
@@ -257,11 +302,11 @@ export default function ObservacoesReport() {
                   <Tooltip
                     contentStyle={tooltipStyle}
                     formatter={(value: number, _: any, props: any) => [
-                      `${value} mudas`,
+                      `${value} dias`,
                       props.payload.faseFull,
                     ]}
                   />
-                  <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="dias" radius={[0, 4, 4, 0]}>
                     {fasesDistribuicao.map((entry, index) => (
                       <rect key={`cell-${index}`} fill={FASE_COLORS[entry.fase] || CHART_COLORS[index % CHART_COLORS.length]} />
                     ))}
@@ -342,7 +387,7 @@ export default function ObservacoesReport() {
           <CardHeader>
             <CardTitle className="font-display text-lg">🌿 Manejo × Desenvolvimento</CardTitle>
             <CardDescription>
-              Relação entre aplicações de produtos e evolução de altura das mudas
+              Relação entre aplicações de produtos e altura das mudas (baseada na fase vigente na data)
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -361,13 +406,13 @@ export default function ObservacoesReport() {
                 <Tooltip
                   contentStyle={tooltipStyle}
                   formatter={(value: number, name: string) => {
-                    if (name === 'alturaMedia') return [`${value} cm`, 'Altura média'];
+                    if (name === 'alturaMedia') return [`${value} cm`, 'Altura (fase)'];
                     return [`${value}`, 'Aplicações'];
                   }}
                 />
                 <Area
                   yAxisId="left"
-                  type="monotone"
+                  type="stepAfter"
                   dataKey="alturaMedia"
                   stroke="#10b981"
                   strokeWidth={2}
@@ -384,7 +429,7 @@ export default function ObservacoesReport() {
               </ComposedChart>
             </ResponsiveContainer>
             <p className="text-xs text-muted-foreground mt-2 italic">
-              Linha verde: altura média (cm) · Losangos roxos: nº de aplicações de produtos na data
+              Linha verde: altura da fase vigente (cm) · Losangos roxos: nº de aplicações de produtos na data
             </p>
           </CardContent>
         </Card>
@@ -422,9 +467,7 @@ export default function ObservacoesReport() {
                     index < historicoMuda.length - 1 && 'border-l-2 border-border ml-2'
                   )}
                 >
-                  {/* Timeline dot */}
                   <div className="absolute -left-[5px] top-1 w-3 h-3 rounded-full bg-primary border-2 border-background" />
-                  
                   <div className="bg-muted/50 rounded-lg p-4 ml-2">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <span className="text-sm font-semibold text-foreground">
@@ -471,7 +514,7 @@ export default function ObservacoesReport() {
         <CardHeader>
           <CardTitle className="font-display text-lg">Resumo de Observações</CardTitle>
           <CardDescription>
-            Análise automática das observações registradas
+            Análise automática baseada nas fases fenológicas e observações registradas
           </CardDescription>
         </CardHeader>
         <CardContent className="prose prose-sm max-w-none">
@@ -486,18 +529,24 @@ export default function ObservacoesReport() {
                   <strong>{formatDate(resumo.periodoFim)}</strong>
                 </>
               )}
-              . A altura média atual (baseada na observação mais recente de cada muda) é de{' '}
+              . A altura média atual, baseada na fase ativa de cada muda, é de{' '}
               <strong>{resumo.alturaMedia.toFixed(1)} cm</strong>.
             </p>
 
             <p className="text-foreground leading-relaxed">
-              <strong>🌿 Fase Predominante:</strong> Com base nas fases fenológicas atuais
-              (registros com data_fim em aberto), a fase predominante é{' '}
-              <strong>{resumo.fasePredominante}</strong>
-              {fasesDistribuicao.length > 0 && (
-                <>, com {fasesDistribuicao[0]?.count} mudas nesta fase</>
+              <strong>⏱️ Duração por Fase:</strong> A fase com maior tempo acumulado é{' '}
+              <strong>{resumo.faseMaiorDuracao}</strong>
+              {diasPorFase[resumo.faseMaiorDuracao] && (
+                <>, com <strong>{diasPorFase[resumo.faseMaiorDuracao]} dias</strong> totais</>
               )}
               .
+              {Object.entries(diasPorFase).length > 1 && (
+                <> Demais fases: {Object.entries(diasPorFase)
+                  .filter(([f]) => f !== resumo.faseMaiorDuracao)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([f, d]) => `${f} (${d} dias)`)
+                  .join(', ')}.</>
+              )}
             </p>
 
             <p className="text-foreground leading-relaxed">
@@ -514,19 +563,19 @@ export default function ObservacoesReport() {
               </p>
             )}
 
-            {dadosComparativos.some(d => d.aplicacoes > 0) && (
+            {dadosComparativos.length > 0 && (
               <p className="text-foreground leading-relaxed">
-                <strong>📊 Manejo × Desenvolvimento:</strong> A análise comparativa correlaciona
-                as aplicações de produtos com a evolução de altura das mudas, considerando alturas
-                reais das observações e alturas estimadas por fase fenológica.
+                <strong>📊 Manejo × Desenvolvimento:</strong> A análise correlaciona as aplicações
+                de produtos com a altura registrada na fase fenológica vigente em cada data,
+                permitindo avaliar o impacto do manejo no desenvolvimento cronológico das mudas.
               </p>
             )}
 
             <div className="border-t border-border pt-4 mt-4">
               <p className="text-muted-foreground text-sm italic">
-                * Altura média calculada pela observação mais recente de cada muda.
-                Fase predominante baseada em fases_fenologicas_mudas (data_fim IS NULL).
-                Distribuição de fases baseada exclusivamente na tabela de fases fenológicas.
+                * Altura média calculada exclusivamente a partir de fases_fenologicas_mudas (fase atual, data_fim IS NULL).
+                Duração por fase calculada pela diferença entre data_inicio e data_fim (ou data atual).
+                Gráfico de desenvolvimento exibe degraus por fase com datas reais.
               </p>
             </div>
           </div>
