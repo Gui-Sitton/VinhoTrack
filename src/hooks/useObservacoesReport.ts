@@ -199,12 +199,18 @@ export function useObservacoesReport(): ObservacoesReportData {
         };
       });
 
-      // ===== DIAS ACUMULADOS POR FASE =====
+      // ===== DURAÇÃO MÉDIA POR FASE (dias) =====
       const diasPorFase: Record<string, number> = {};
+      const contadorPorFase: Record<string, number> = {};
       for (const f of fases) {
         const fim = f.data_fim || hoje;
         const dias = diffDays(f.data_inicio, fim);
         diasPorFase[f.fase] = (diasPorFase[f.fase] || 0) + dias;
+        contadorPorFase[f.fase] = (contadorPorFase[f.fase] || 0) + 1;
+      }
+      // Converter para média
+      for (const fase of Object.keys(diasPorFase)) {
+        diasPorFase[fase] = Math.round(diasPorFase[fase] / contadorPorFase[fase]);
       }
 
       // ===== FASE COM MAIOR DURAÇÃO =====
