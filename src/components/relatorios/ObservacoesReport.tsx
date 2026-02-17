@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, ChevronUp, Clock, Filter } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useObservacoesReport, ObservacaoReport, FaseFenologicaReport } from '@/hooks/useObservacoesReport';
-import { useAplicacoesProdutos } from '@/hooks/useReportData';
+import { useObservacoesReport, ObservacaoReport } from '@/hooks/useObservacoesReport';
+import { useManejoDesenvolvimento } from '@/hooks/useManejoDesenvolvimento';
+import { useTalhoes } from '@/hooks/useMudas';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -15,12 +16,11 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
-  Area,
-  AreaChart,
   ComposedChart,
+  Line,
   Scatter,
+  Area,
+  Cell,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +34,10 @@ const FASE_COLORS: Record<string, string> = {
   'Maturação': '#ef4444',
   'Colheita': '#8b5cf6',
   'Crescimento vegetativo': '#10b981',
+  'crescimento_vegetativo': '#10b981',
+  'plantio': '#6b7280',
+  'brotamento_inicial': '#84cc16',
+  'lignificacao_1ano': '#f59e0b',
 };
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6', '#f472b6', '#6b7280', '#84cc16', '#a78bfa'];
@@ -52,30 +56,20 @@ const tooltipStyle = {
   borderRadius: '8px',
 };
 
-function diffDays(start: string, end: string): number {
-  const s = new Date(start + 'T00:00:00');
-  const e = new Date(end + 'T00:00:00');
-  return Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
-}
-
-function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
 export default function ObservacoesReport() {
   const {
     observacoes,
     resumo,
-    alturaEvolucao,
     fasesDistribuicao,
     alertasCriticos,
     mudasComObservacoes,
-    fasesAtuais,
     diasPorFase,
     isLoading,
   } = useObservacoesReport();
 
-  const { data: aplicacoes } = useAplicacoesProdutos();
+  const { data: talhoes } = useTalhoes();
+  const [talhaoSelecionado, setTalhaoSelecionado] = useState<string>('todos');
+  const { data: manejoData, isLoading: manejoLoading } = useManejoDesenvolvimento(talhaoSelecionado);
 
   const [mudaSelecionada, setMudaSelecionada] = useState<string>('');
   const [showAllAlertas, setShowAllAlertas] = useState(false);
@@ -88,60 +82,58 @@ export default function ObservacoesReport() {
       .sort((a, b) => b.data.localeCompare(a.data));
   }, [mudaSelecionada, observacoes]);
 
-  // Dados para seção comparativa Manejo × Desenvolvimento
-  const dadosComparativos = useMemo(() => {
-    if (!aplicacoes || aplicacoes.length === 0 || fasesAtuais.length === 0) return [];
+  // Dados do gráfico combinado Crescimento × Manejo
+  const chartData = useMemo(() => {
+    if (!manejoData || manejoData.length === 0) return [];
+    return manejoData.map(d => ({
+      data: formatDateShort(d.data_evento),
+      dataFull: d.data_evento,
+      altura: d.alturaMedia,
+      fase: d.fase,
+      aplicacoes: d.numAplicacoes > 0 ? d.alturaMedia : null, // Y position = altura for scatter overlay
+      numAplicacoes: d.numAplicacoes,
+      quantidadeTotal: d.quantidadeTotal,
+      scatterSize: d.numAplicacoes > 0 ? Math.max(40, Math.min(200, d.quantidadeTotal / 2)) : 0,
+    }));
+  }, [manejoData]);
 
-    const hoje = todayStr();
+  // Resumo do manejo baseado na view
+  const manejoResumo = useMemo(() => {
+    if (!manejoData || manejoData.length === 0) return null;
 
-    // All phases for lookup
-    const allFases = [...fasesAtuais];
-    // We need all fases, not just current - get from alturaEvolucao context
-    // Actually we need the raw fases - let's use fasesAtuais which includes all fases from the hook
-    // The hook only exposes fasesAtuais (data_fim IS NULL). We need all fases for date lookup.
-    // Since we can't easily get all fases here, let's correlate with alturaEvolucao data instead.
+    const alturas = manejoData.filter(d => d.alturaMedia > 0).map(d => d.alturaMedia);
+    const alturaInicial = alturas.length > 0 ? alturas[0] : 0;
+    const alturaFinal = alturas.length > 0 ? alturas[alturas.length - 1] : 0;
+    const crescimento = alturaFinal - alturaInicial;
 
-    // Build a date->altura map from alturaEvolucao
-    const alturaByDate = new Map<string, number>();
-    for (const item of alturaEvolucao) {
-      alturaByDate.set(item.data, item.alturaMedia);
-    }
+    const totalAplicacoes = manejoData.reduce((sum, d) => sum + d.numAplicacoes, 0);
+    const datasComAplicacao = manejoData.filter(d => d.numAplicacoes > 0).map(d => d.data_evento);
+    const fasesPercorridas = [...new Set(manejoData.map(d => d.fase))];
 
-    // For each application, find closest height from alturaEvolucao
-    const resultado = aplicacoes
-      .sort((a, b) => a.data.localeCompare(b.data))
-      .map(ap => {
-        // Find closest date in alturaEvolucao
-        let closestAltura = 0;
-        let closestDist = Infinity;
-        for (const [date, altura] of alturaByDate) {
-          const dist = Math.abs(diffDays(ap.data, date));
-          if (dist < closestDist) {
-            closestDist = dist;
-            closestAltura = altura;
+    // Verificar padrões manejo → crescimento
+    let crescimentoAposManejo = false;
+    for (let i = 0; i < manejoData.length - 1; i++) {
+      if (manejoData[i].numAplicacoes > 0) {
+        for (let j = i + 1; j < manejoData.length; j++) {
+          if (manejoData[j].alturaMedia > manejoData[i].alturaMedia) {
+            crescimentoAposManejo = true;
+            break;
           }
         }
-
-        return {
-          data: formatDateShort(ap.data),
-          dataFull: ap.data,
-          alturaMedia: Number(closestAltura.toFixed(1)),
-          aplicacoes: 1,
-        };
-      });
-
-    // Group by date
-    const grouped: Record<string, { data: string; dataFull: string; alturaMedia: number; aplicacoes: number }> = {};
-    for (const r of resultado) {
-      if (!grouped[r.dataFull]) {
-        grouped[r.dataFull] = { ...r };
-      } else {
-        grouped[r.dataFull].aplicacoes += 1;
+        if (crescimentoAposManejo) break;
       }
     }
 
-    return Object.values(grouped).sort((a, b) => a.dataFull.localeCompare(b.dataFull));
-  }, [aplicacoes, fasesAtuais, alturaEvolucao]);
+    return {
+      alturaInicial,
+      alturaFinal,
+      crescimento,
+      totalAplicacoes,
+      datasComAplicacao,
+      fasesPercorridas,
+      crescimentoAposManejo,
+    };
+  }, [manejoData]);
 
   const alertasExibidos = showAllAlertas ? alertasCriticos : alertasCriticos.slice(0, 5);
 
@@ -172,6 +164,28 @@ export default function ObservacoesReport() {
 
   return (
     <div className="space-y-6">
+      {/* Filtro por Talhão */}
+      <Card className="animate-fade-in">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            <Filter className="w-5 h-5 text-muted-foreground" />
+            <Select value={talhaoSelecionado} onValueChange={setTalhaoSelecionado}>
+              <SelectTrigger className="w-full md:w-80">
+                <SelectValue placeholder="Filtrar por talhão..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os talhões</SelectItem>
+                {talhoes?.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.nome || t.codigo} — {t.variedade}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Indicadores Rápidos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="animate-fade-in" style={{ animationDelay: '0ms' }}>
@@ -236,24 +250,26 @@ export default function ObservacoesReport() {
         </Card>
       </div>
 
-      {/* Gráficos - Linha 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Evolução da Altura */}
-        <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">📈 Desenvolvimento ao Longo do Tempo</CardTitle>
-            <CardDescription>Evolução da altura média por fase fenológica (degraus por fase)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {alturaEvolucao.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={alturaEvolucao.map(d => ({
-                  data: formatDateShort(d.data),
-                  altura: Number(d.alturaMedia.toFixed(1)),
-                }))}>
+      {/* Gráfico Principal: Crescimento × Manejo no Tempo */}
+      <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
+        <CardHeader>
+          <CardTitle className="font-display text-lg">📈 Crescimento × Manejo no Tempo</CardTitle>
+          <CardDescription>
+            Evolução da altura média e eventos de manejo ao longo do tempo (fonte: view_manejo_desenvolvimento)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {manejoLoading ? (
+            <div className="h-[320px] flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : chartData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={320}>
+                <ComposedChart data={chartData}>
                   <defs>
                     <linearGradient id="alturaGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -262,7 +278,24 @@ export default function ObservacoesReport() {
                   <YAxis className="text-sm" unit=" cm" />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(value: number) => [`${value} cm`, 'Altura média']}
+                    content={({ active, payload }) => {
+                      if (!active || !payload || payload.length === 0) return null;
+                      const d = payload[0]?.payload;
+                      if (!d) return null;
+                      return (
+                        <div className="rounded-lg border bg-card px-3 py-2 text-xs shadow-xl space-y-1">
+                          <p className="font-medium">{formatDate(d.dataFull)}</p>
+                          <p>Fase: <strong>{d.fase}</strong></p>
+                          <p>Altura média: <strong>{d.altura} cm</strong></p>
+                          {d.numAplicacoes > 0 && (
+                            <>
+                              <p className="text-purple-600">Aplicações: <strong>{d.numAplicacoes}</strong></p>
+                              <p className="text-purple-600">Quantidade total: <strong>{d.quantidadeTotal}</strong></p>
+                            </>
+                          )}
+                        </div>
+                      );
+                    }}
                   />
                   <Area
                     type="stepAfter"
@@ -270,57 +303,82 @@ export default function ObservacoesReport() {
                     stroke="#10b981"
                     strokeWidth={2}
                     fill="url(#alturaGradient)"
-                    dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                    dot={{ fill: '#10b981', strokeWidth: 2, r: 3 }}
+                    name="Altura"
                   />
-                </AreaChart>
+                  <Scatter
+                    dataKey="aplicacoes"
+                    fill="#7c3aed"
+                    name="Aplicações"
+                    shape={(props: any) => {
+                      const { cx, cy, payload } = props;
+                      if (!payload || payload.numAplicacoes <= 0 || !cx || !cy) return null;
+                      const size = Math.max(6, Math.min(16, payload.quantidadeTotal / 10));
+                      return (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={size}
+                          fill="#7c3aed"
+                          fillOpacity={0.7}
+                          stroke="#7c3aed"
+                          strokeWidth={2}
+                        />
+                      );
+                    }}
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
-            ) : (
-              <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                Sem dados de altura registrados nas fases fenológicas
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              <p className="text-xs text-muted-foreground mt-2 italic">
+                Linha verde: altura média (cm, degraus por fase) · Círculos roxos: aplicações de produtos (tamanho proporcional à quantidade)
+              </p>
+            </>
+          ) : (
+            <div className="h-[320px] flex items-center justify-center text-muted-foreground">
+              Sem dados de crescimento e manejo para o talhão selecionado
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        {/* Distribuição de Fases — agora em DIAS */}
-        <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">🌱 Duração por Fase Fenológica</CardTitle>
-            <CardDescription>Total de dias acumulados em cada fase (todas as mudas)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {fasesDistribuicao.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={fasesDistribuicao.map(d => ({
-                  fase: d.fase.length > 15 ? d.fase.substring(0, 15) + '…' : d.fase,
-                  faseFull: d.fase,
-                  dias: d.count,
-                }))} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" className="text-sm" />
-                  <YAxis dataKey="fase" type="category" className="text-sm" width={120} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(value: number, _: any, props: any) => [
-                      `${value} dias`,
-                      props.payload.faseFull,
-                    ]}
-                  />
-                  <Bar dataKey="dias" radius={[0, 4, 4, 0]}>
-                    {fasesDistribuicao.map((entry, index) => (
-                      <rect key={`cell-${index}`} fill={FASE_COLORS[entry.fase] || CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-[280px] flex items-center justify-center text-muted-foreground">
-                Sem dados de fases registrados
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Duração por Fase Fenológica */}
+      <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
+        <CardHeader>
+          <CardTitle className="font-display text-lg">🌱 Duração por Fase Fenológica</CardTitle>
+          <CardDescription>Duração média em dias por fase (todas as mudas)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {fasesDistribuicao.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={fasesDistribuicao.map(d => ({
+                fase: d.fase.length > 15 ? d.fase.substring(0, 15) + '…' : d.fase,
+                faseFull: d.fase,
+                dias: d.count,
+              }))} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis type="number" className="text-sm" />
+                <YAxis dataKey="fase" type="category" className="text-sm" width={120} />
+                <Tooltip
+                  contentStyle={tooltipStyle}
+                  formatter={(value: number, _: any, props: any) => [
+                    `${value} dias`,
+                    props.payload.faseFull,
+                  ]}
+                />
+                <Bar dataKey="dias" radius={[0, 4, 4, 0]}>
+                  {fasesDistribuicao.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={FASE_COLORS[entry.fase] || CHART_COLORS[index % CHART_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[280px] flex items-center justify-center text-muted-foreground">
+              Sem dados de fases registrados
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Alertas Críticos */}
       {alertasCriticos.length > 0 && (
@@ -381,62 +439,8 @@ export default function ObservacoesReport() {
         </Card>
       )}
 
-      {/* Seção Comparativa - Manejo × Desenvolvimento */}
-      {dadosComparativos.length > 0 && (
-        <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">🌿 Manejo × Desenvolvimento</CardTitle>
-            <CardDescription>
-              Relação entre aplicações de produtos e altura das mudas (baseada na fase vigente na data)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={dadosComparativos}>
-                <defs>
-                  <linearGradient id="compAlturaGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="data" className="text-sm" />
-                <YAxis yAxisId="left" className="text-sm" unit=" cm" />
-                <YAxis yAxisId="right" orientation="right" className="text-sm" />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'alturaMedia') return [`${value} cm`, 'Altura (fase)'];
-                    return [`${value}`, 'Aplicações'];
-                  }}
-                />
-                <Area
-                  yAxisId="left"
-                  type="stepAfter"
-                  dataKey="alturaMedia"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  fill="url(#compAlturaGradient)"
-                  name="alturaMedia"
-                />
-                <Scatter
-                  yAxisId="right"
-                  dataKey="aplicacoes"
-                  fill="#7c3aed"
-                  name="aplicacoes"
-                  shape="diamond"
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-            <p className="text-xs text-muted-foreground mt-2 italic">
-              Linha verde: altura da fase vigente (cm) · Losangos roxos: nº de aplicações de produtos na data
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Histórico por Muda */}
-      <Card className="animate-fade-in" style={{ animationDelay: '800ms' }}>
+      <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
         <CardHeader>
           <CardTitle className="font-display text-lg">📋 Histórico Detalhado por Muda</CardTitle>
           <CardDescription>Selecione uma muda para ver sua linha do tempo completa</CardDescription>
@@ -510,11 +514,11 @@ export default function ObservacoesReport() {
       </Card>
 
       {/* Resumo Textual */}
-      <Card className="animate-fade-in" style={{ animationDelay: '900ms' }}>
+      <Card className="animate-fade-in" style={{ animationDelay: '800ms' }}>
         <CardHeader>
-          <CardTitle className="font-display text-lg">Resumo de Observações</CardTitle>
+          <CardTitle className="font-display text-lg">Resumo Agronômico</CardTitle>
           <CardDescription>
-            Análise automática baseada nas fases fenológicas e observações registradas
+            Análise automática baseada na view de manejo × desenvolvimento
           </CardDescription>
         </CardHeader>
         <CardContent className="prose prose-sm max-w-none">
@@ -533,11 +537,41 @@ export default function ObservacoesReport() {
               <strong>{resumo.alturaMedia.toFixed(1)} cm</strong>.
             </p>
 
+            {manejoResumo && (
+              <>
+                <p className="text-foreground leading-relaxed">
+                  <strong>📏 Crescimento Real:</strong> A altura evoluiu de{' '}
+                  <strong>{manejoResumo.alturaInicial} cm</strong> para{' '}
+                  <strong>{manejoResumo.alturaFinal} cm</strong>
+                  {manejoResumo.crescimento > 0
+                    ? <>, representando um incremento de <strong>{manejoResumo.crescimento} cm</strong></>
+                    : null
+                  }
+                  . O vinhedo percorreu{' '}
+                  <strong>{manejoResumo.fasesPercorridas.length} fase(s) fenológica(s)</strong>
+                  : {manejoResumo.fasesPercorridas.join(', ')}.
+                </p>
+
+                <p className="text-foreground leading-relaxed">
+                  <strong>🧪 Intensidade de Manejo:</strong> Foram registradas{' '}
+                  <strong>{manejoResumo.totalAplicacoes} aplicações</strong> de produtos no período.
+                  {manejoResumo.datasComAplicacao.length > 0 && (
+                    <> As aplicações ocorreram em{' '}
+                    <strong>{manejoResumo.datasComAplicacao.length} data(s)</strong> distintas.</>
+                  )}
+                  {manejoResumo.crescimentoAposManejo && (
+                    <> Observou-se aumento de altura após eventos de manejo, sugerindo resposta
+                    positiva das plantas às intervenções fitossanitárias.</>
+                  )}
+                </p>
+              </>
+            )}
+
             <p className="text-foreground leading-relaxed">
               <strong>⏱️ Duração por Fase:</strong> A fase com maior tempo acumulado é{' '}
               <strong>{resumo.faseMaiorDuracao}</strong>
               {diasPorFase[resumo.faseMaiorDuracao] && (
-                <>, com <strong>{diasPorFase[resumo.faseMaiorDuracao]} dias</strong> totais</>
+                <>, com <strong>{diasPorFase[resumo.faseMaiorDuracao]} dias</strong> em média</>
               )}
               .
               {Object.entries(diasPorFase).length > 1 && (
@@ -563,19 +597,11 @@ export default function ObservacoesReport() {
               </p>
             )}
 
-            {dadosComparativos.length > 0 && (
-              <p className="text-foreground leading-relaxed">
-                <strong>📊 Manejo × Desenvolvimento:</strong> A análise correlaciona as aplicações
-                de produtos com a altura registrada na fase fenológica vigente em cada data,
-                permitindo avaliar o impacto do manejo no desenvolvimento cronológico das mudas.
-              </p>
-            )}
-
             <div className="border-t border-border pt-4 mt-4">
               <p className="text-muted-foreground text-sm italic">
-                * Altura média calculada exclusivamente a partir de fases_fenologicas_mudas (fase atual, data_fim IS NULL).
-                Duração por fase calculada pela diferença entre data_inicio e data_fim (ou data atual).
-                Gráfico de desenvolvimento exibe degraus por fase com datas reais.
+                * Dados de crescimento e manejo obtidos de view_manejo_desenvolvimento.
+                Altura média calculada a partir de fases_fenologicas_mudas (fase atual).
+                Duração por fase: média de dias entre data_inicio e data_fim (ou data atual).
               </p>
             </div>
           </div>
