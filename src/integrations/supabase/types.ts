@@ -492,16 +492,7 @@ export type Database = {
       }
     }
     Views: {
-      view_manejo_desenvolvimento_talhao: {
-        Row: {
-          altura_media_cm: number | null
-          data_evento: string | null
-          num_aplicacoes: number | null
-          quantidade_total: number | null
-          talhao_id: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       [_ in never]: never
