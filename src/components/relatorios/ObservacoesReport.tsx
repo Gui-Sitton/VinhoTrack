@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
-import { Leaf, AlertTriangle, TrendingUp, Users, Calendar, Search, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Leaf, AlertTriangle, TrendingUp, Users, Search, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useObservacoesReport, ObservacaoReport, FaseFenologicaReport } from '@/hooks/useObservacoesReport';
-import { useAplicacoesProdutos } from '@/hooks/useReportData';
+import { useObservacoesReport } from '@/hooks/useObservacoesReport';
+import { useTalhoes } from '@/hooks/useMudas';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -52,15 +54,7 @@ const tooltipStyle = {
   borderRadius: '8px',
 };
 
-function diffDays(start: string, end: string): number {
-  const s = new Date(start + 'T00:00:00');
-  const e = new Date(end + 'T00:00:00');
-  return Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
-}
 
-function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
-}
 
 export default function ObservacoesReport() {
   const {
@@ -75,10 +69,61 @@ export default function ObservacoesReport() {
     isLoading,
   } = useObservacoesReport();
 
-  const { data: aplicacoes } = useAplicacoesProdutos();
+  const { data: talhoes } = useTalhoes();
+
+  // Seleciona o primeiro talhão disponível para o gráfico Manejo × Desenvolvimento
+  const talhaoId = talhoes && talhoes.length > 0 ? talhoes[0].id : null;
+
+  const { data: viewManejoData } = useQuery({
+    queryKey: ['view-manejo-desenvolvimento', talhaoId],
+    queryFn: async () => {
+      if (!talhaoId) return [];
+      const { data, error } = await supabase
+        .from('view_manejo_desenvolvimento_talhao')
+        .select('*')
+        .eq('talhao_id', talhaoId)
+        .order('data_evento', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!talhaoId,
+  });
 
   const [mudaSelecionada, setMudaSelecionada] = useState<string>('');
   const [showAllAlertas, setShowAllAlertas] = useState(false);
+  const [talhaoSelecionado, setTalhaoSelecionado] = useState<string>('');
+
+  // Talhão efetivo para o gráfico
+  const talhaoEfetivoId = talhaoSelecionado || talhaoId || '';
+
+  const { data: viewManejoDataSelecionado } = useQuery({
+    queryKey: ['view-manejo-desenvolvimento-selecionado', talhaoEfetivoId],
+    queryFn: async () => {
+      if (!talhaoEfetivoId) return [];
+      const { data, error } = await supabase
+        .from('view_manejo_desenvolvimento_talhao')
+        .select('*')
+        .eq('talhao_id', talhaoEfetivoId)
+        .order('data_evento', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!talhaoEfetivoId,
+  });
+
+  // Dados do gráfico Manejo × Desenvolvimento vindos da view
+  const dadosComparativos = useMemo(() => {
+    const source = viewManejoDataSelecionado || viewManejoData || [];
+    return source
+      .filter(d => d.data_evento !== null)
+      .map(d => ({
+        data: formatDateShort(d.data_evento as string),
+        dataFull: d.data_evento as string,
+        alturaMedia: d.altura_media_cm !== null ? Number(Number(d.altura_media_cm).toFixed(1)) : null,
+        numAplicacoes: d.num_aplicacoes ?? 0,
+        quantidadeTotal: d.quantidade_total ?? 0,
+      }));
+  }, [viewManejoData, viewManejoDataSelecionado]);
 
   // Histórico da muda selecionada
   const historicoMuda = useMemo(() => {
@@ -87,61 +132,6 @@ export default function ObservacoesReport() {
       .filter(o => o.muda_id === mudaSelecionada)
       .sort((a, b) => b.data.localeCompare(a.data));
   }, [mudaSelecionada, observacoes]);
-
-  // Dados para seção comparativa Manejo × Desenvolvimento
-  const dadosComparativos = useMemo(() => {
-    if (!aplicacoes || aplicacoes.length === 0 || fasesAtuais.length === 0) return [];
-
-    const hoje = todayStr();
-
-    // All phases for lookup
-    const allFases = [...fasesAtuais];
-    // We need all fases, not just current - get from alturaEvolucao context
-    // Actually we need the raw fases - let's use fasesAtuais which includes all fases from the hook
-    // The hook only exposes fasesAtuais (data_fim IS NULL). We need all fases for date lookup.
-    // Since we can't easily get all fases here, let's correlate with alturaEvolucao data instead.
-
-    // Build a date->altura map from alturaEvolucao
-    const alturaByDate = new Map<string, number>();
-    for (const item of alturaEvolucao) {
-      alturaByDate.set(item.data, item.alturaMedia);
-    }
-
-    // For each application, find closest height from alturaEvolucao
-    const resultado = aplicacoes
-      .sort((a, b) => a.data.localeCompare(b.data))
-      .map(ap => {
-        // Find closest date in alturaEvolucao
-        let closestAltura = 0;
-        let closestDist = Infinity;
-        for (const [date, altura] of alturaByDate) {
-          const dist = Math.abs(diffDays(ap.data, date));
-          if (dist < closestDist) {
-            closestDist = dist;
-            closestAltura = altura;
-          }
-        }
-
-        return {
-          data: formatDateShort(ap.data),
-          dataFull: ap.data,
-          alturaMedia: Number(closestAltura.toFixed(1)),
-          aplicacoes: 1,
-        };
-      });
-
-    // Group by date
-    const grouped: Record<string, { data: string; dataFull: string; alturaMedia: number; aplicacoes: number }> = {};
-    for (const r of resultado) {
-      if (!grouped[r.dataFull]) {
-        grouped[r.dataFull] = { ...r };
-      } else {
-        grouped[r.dataFull].aplicacoes += 1;
-      }
-    }
-
-    return Object.values(grouped).sort((a, b) => a.dataFull.localeCompare(b.dataFull));
-  }, [aplicacoes, fasesAtuais, alturaEvolucao]);
 
   const alertasExibidos = showAllAlertas ? alertasCriticos : alertasCriticos.slice(0, 5);
 
@@ -381,59 +371,104 @@ export default function ObservacoesReport() {
         </Card>
       )}
 
-      {/* Seção Comparativa - Manejo × Desenvolvimento */}
-      {dadosComparativos.length > 0 && (
-        <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
-          <CardHeader>
-            <CardTitle className="font-display text-lg">🌿 Manejo × Desenvolvimento</CardTitle>
-            <CardDescription>
-              Relação entre aplicações de produtos e altura das mudas (baseada na fase vigente na data)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={dadosComparativos}>
-                <defs>
-                  <linearGradient id="compAlturaGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="data" className="text-sm" />
-                <YAxis yAxisId="left" className="text-sm" unit=" cm" />
-                <YAxis yAxisId="right" orientation="right" className="text-sm" />
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  formatter={(value: number, name: string) => {
-                    if (name === 'alturaMedia') return [`${value} cm`, 'Altura (fase)'];
-                    return [`${value}`, 'Aplicações'];
-                  }}
-                />
-                <Area
-                  yAxisId="left"
-                  type="stepAfter"
-                  dataKey="alturaMedia"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  fill="url(#compAlturaGradient)"
-                  name="alturaMedia"
-                />
-                <Scatter
-                  yAxisId="right"
-                  dataKey="aplicacoes"
-                  fill="#7c3aed"
-                  name="aplicacoes"
-                  shape="diamond"
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-            <p className="text-xs text-muted-foreground mt-2 italic">
-              Linha verde: altura da fase vigente (cm) · Losangos roxos: nº de aplicações de produtos na data
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {/* Seção Comparativa - Manejo × Desenvolvimento (via view agregada) */}
+      <Card className="animate-fade-in" style={{ animationDelay: '700ms' }}>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="font-display text-lg">🌿 Manejo × Desenvolvimento</CardTitle>
+              <CardDescription>
+                Curva de crescimento do talhão com marcadores nos dias de aplicação de produtos
+              </CardDescription>
+            </div>
+            {talhoes && talhoes.length > 1 && (
+              <Select value={talhaoSelecionado || talhaoId || ''} onValueChange={setTalhaoSelecionado}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Selecionar talhão..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {talhoes.map(t => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nome || t.codigo}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {dadosComparativos.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={320}>
+                <ComposedChart data={dadosComparativos}>
+                  <defs>
+                    <linearGradient id="compAlturaGradient2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="data" className="text-sm" tick={{ fontSize: 11 }} />
+                  <YAxis yAxisId="altura" className="text-sm" unit=" cm" width={60} />
+                  <YAxis yAxisId="aplicacao" orientation="right" className="text-sm" hide />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]?.payload;
+                      return (
+                        <div style={tooltipStyle} className="px-3 py-2 text-xs space-y-1">
+                          <p className="font-semibold">{label}</p>
+                          {d.alturaMedia !== null && (
+                            <p>Altura média: <strong>{d.alturaMedia} cm</strong></p>
+                          )}
+                          {d.numAplicacoes > 0 && (
+                            <>
+                              <p>Aplicações: <strong>{d.numAplicacoes}</strong></p>
+                              <p>Quantidade total: <strong>{Number(d.quantidadeTotal).toFixed(2)}</strong></p>
+                            </>
+                          )}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Area
+                    yAxisId="altura"
+                    type="monotone"
+                    dataKey="alturaMedia"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#compAlturaGradient2)"
+                    dot={false}
+                    connectNulls
+                    name="Altura média (cm)"
+                  />
+                  <Scatter
+                    yAxisId="altura"
+                    dataKey={(d: any) => d.numAplicacoes > 0 ? d.alturaMedia : null}
+                    fill="#7c3aed"
+                    name="Aplicação"
+                    shape={(props: any) => {
+                      const { cx, cy, payload } = props;
+                      if (!payload?.numAplicacoes || payload.numAplicacoes === 0) return <g />;
+                      const r = Math.max(5, Math.min(14, 5 + Math.sqrt(payload.quantidadeTotal || 0) * 0.3));
+                      return <circle cx={cx} cy={cy} r={r} fill="#7c3aed" fillOpacity={0.7} stroke="#5b21b6" strokeWidth={1} />;
+                    }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-muted-foreground mt-2 italic">
+                Linha verde: altura média do talhão (cm) · Círculos roxos: dias com aplicação de produtos (tamanho proporcional à quantidade)
+              </p>
+            </>
+          ) : (
+            <div className="h-[320px] flex items-center justify-center text-muted-foreground">
+              Sem dados disponíveis para o talhão selecionado
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Histórico por Muda */}
       <Card className="animate-fade-in" style={{ animationDelay: '800ms' }}>
