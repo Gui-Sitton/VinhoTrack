@@ -114,7 +114,7 @@ export default function ObservacoesReport() {
   // Dados do gráfico Manejo × Desenvolvimento vindos da view
   const dadosComparativos = useMemo(() => {
     const source = viewManejoDataSelecionado || viewManejoData || [];
-    const mapped = source
+    return source
       .filter(d => d.data_evento !== null)
       .map(d => ({
         data: formatDateShort(d.data_evento as string),
@@ -123,24 +123,6 @@ export default function ObservacoesReport() {
         numAplicacoes: d.num_aplicacoes ?? 0,
         quantidadeTotal: d.quantidade_total ?? 0,
       }));
-
-    // Garantir que a linha de crescimento alcance a data de hoje
-    if (mapped.length > 0) {
-      const now = new Date();
-      const hojeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const ultimo = mapped[mapped.length - 1];
-      if (ultimo.dataFull < hojeStr) {
-        mapped.push({
-          data: formatDateShort(hojeStr),
-          dataFull: hojeStr,
-          alturaMedia: ultimo.alturaMedia,
-          numAplicacoes: 0,
-          quantidadeTotal: 0,
-        });
-      }
-    }
-
-    return mapped;
   }, [viewManejoData, viewManejoDataSelecionado]);
 
   // Histórico da muda selecionada
