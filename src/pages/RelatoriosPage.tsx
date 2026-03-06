@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react';
-import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet, ImageDown, Download, FileText } from 'lucide-react';
+import { FileBarChart, TrendingUp, Leaf, FlaskConical, BarChart3, Filter, X, Loader2, Database, Droplet, ImageDown, Download, FileText, Cloud } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useReportData, AplicacaoProduto } from '@/hooks/useReportData';
 import { useIrrigacoesReport } from '@/hooks/useIrrigacoes';
 import ObservacoesReport from '@/components/relatorios/ObservacoesReport';
+import ClimaReport from '@/components/relatorios/ClimaReport';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import html2canvas from 'html2canvas';
@@ -42,6 +43,17 @@ export default function RelatoriosPage() {
   const [relatorioGerado, setRelatorioGerado] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState('aplicacoes');
+
+  // Estados de clima
+  const [climaDataInicio, setClimaDataInicio] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [climaDataFim, setClimaDataFim] = useState<string>(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [climaTalhaoId] = useState<string | null>(null);
 
   const relatorioRef = useRef<HTMLDivElement | null>(null);
   const pdfContentRef = useRef<HTMLDivElement | null>(null);
@@ -471,7 +483,7 @@ export default function RelatoriosPage() {
           )}
         >
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 max-w-md">
+            <TabsList className="grid w-full grid-cols-3 max-w-lg">
               <TabsTrigger value="aplicacoes" className="gap-2">
                 <FlaskConical className="w-4 h-4" />
                 Aplicações & Produção
@@ -479,6 +491,10 @@ export default function RelatoriosPage() {
               <TabsTrigger value="observacoes" className="gap-2">
                 <Leaf className="w-4 h-4" />
                 Observações
+              </TabsTrigger>
+              <TabsTrigger value="clima" className="gap-2">
+                <Cloud className="w-4 h-4" />
+                Clima
               </TabsTrigger>
             </TabsList>
 
@@ -1059,6 +1075,50 @@ export default function RelatoriosPage() {
             <TabsContent value="observacoes" className="mt-6">
               <ObservacoesReport />
             </TabsContent>
+
+            {/* ===== ABA: CLIMA ===== */}
+            <TabsContent value="clima" className="space-y-6 mt-6">
+              <Card>
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-2">
+                    <Cloud className="w-5 h-5 text-primary" />
+                    <CardTitle className="font-display text-lg">Dados Climáticos</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Temperatura, precipitação, evapotranspiração e risco fitossanitário
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium">Data início</label>
+                      <input
+                        type="date"
+                        value={climaDataInicio}
+                        onChange={e => setClimaDataInicio(e.target.value)}
+                        className="border border-border rounded-md px-3 py-1.5 text-sm bg-background"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-sm font-medium">Data fim</label>
+                      <input
+                        type="date"
+                        value={climaDataFim}
+                        onChange={e => setClimaDataFim(e.target.value)}
+                        className="border border-border rounded-md px-3 py-1.5 text-sm bg-background"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <ClimaReport
+                talhaoId={climaTalhaoId}
+                dataInicio={climaDataInicio}
+                dataFim={climaDataFim}
+              />
+            </TabsContent>
+
           </Tabs>
         </div>
       </div>
