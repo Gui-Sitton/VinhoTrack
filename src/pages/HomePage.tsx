@@ -1,166 +1,432 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { useMudasStats, useTalhoes } from '@/hooks/useMudas';
-import { Grape, Map, List, TrendingUp, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
+import { Grape, TrendingUp, AlertTriangle, XCircle, Loader2, Thermometer, Droplets, Leaf, CloudRain, ClipboardList, Sprout } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
+// ── Fases fenológicas para MUDAS no 1º ano (base GDD 10°C) ──
+const FASES_MUDA = [
+  { label: 'Estabelecimento', gddMin: 0,    gddMax: 150,  cor: '#94a3b8', desc: 'Adaptação e enraizamento inicial' },
+  { label: 'Brotação',        gddMin: 150,  gddMax: 400,  cor: '#86efac', desc: 'Primeiros brotos e folhas' },
+  { label: 'Crescimento',     gddMin: 400,  gddMax: 800,  cor: '#4ade80', desc: 'Crescimento vegetativo ativo' },
+  { label: 'Lignificação',    gddMin: 800,  gddMax: 1300, cor: '#f59e0b', desc: 'Início da lenhificação dos ramos' },
+  { label: 'Maturação',       gddMin: 1300, gddMax: 2000, cor: '#7c3aed', desc: 'Preparação para dormência' },
+];
+
+function getFaseMuda(gdd: number) {
+  return FASES_MUDA.find(f => gdd >= f.gddMin && gdd < f.gddMax)
+    ?? FASES_MUDA[FASES_MUDA.length - 1];
+}
+
+// ── Hook: clima de hoje ──────────────────────────────────────
+function useClimaHoje(talhaoId?: string) {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const ontem = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  return useQuery({
+    queryKey: ['clima-hoje', talhaoId],
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from('clima_diario')
+        .select('*')
+        .gte('data', ontem)
+        .lte('data', hoje)
+        .order('data', { ascending: false })
+        .limit(1);
+      if (talhaoId) q = q.eq('talhao_id', talhaoId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data?.[0] ?? null;
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+// ── Hook: GDD acumulado desde plantio ───────────────────────
+function useGDDAcumulado(talhaoId?: string, dataPlantio?: string) {
+  return useQuery({
+    queryKey: ['gdd-acumulado', talhaoId, dataPlantio],
+    queryFn: async () => {
+      if (!dataPlantio) return 0;
+      let q = (supabase as any)
+        .from('clima_diario')
+        .select('graus_dia')
+        .gte('data', dataPlantio);
+      if (talhaoId) q = q.eq('talhao_id', talhaoId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []).reduce((acc: number, r: any) => acc + (r.graus_dia ?? 0), 0);
+    },
+    enabled: !!dataPlantio,
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+// ── Hook: balanço hídrico últimos 7 dias ─────────────────────
+function useBalancoHidrico(talhaoId?: string) {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const seteDias = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  return useQuery({
+    queryKey: ['balanco-hidrico', talhaoId],
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from('clima_diario')
+        .select('precipitacao_mm, evapotranspiracao_mm')
+        .gte('data', seteDias)
+        .lte('data', hoje);
+      if (talhaoId) q = q.eq('talhao_id', talhaoId);
+      const { data: climaData, error } = await q;
+      if (error) throw error;
+
+      const chuva = (climaData ?? []).reduce((acc: number, r: any) => acc + (r.precipitacao_mm ?? 0), 0);
+      const et0   = (climaData ?? []).reduce((acc: number, r: any) => acc + (r.evapotranspiracao_mm ?? 0), 0);
+
+      let qi = (supabase as any)
+        .from('irrigacoes_talhoes')
+        .select('volume_por_muda_l')
+        .gte('data_inicio', seteDias);
+      if (talhaoId) qi = qi.eq('talhao_id', talhaoId);
+      const { data: irrigData } = await qi;
+
+      // 1 L/muda ÷ 2 m²/muda ≈ 0.5 mm
+      const irrigacaoMm = (irrigData ?? []).reduce((acc: number, r: any) => acc + ((r.volume_por_muda_l ?? 0) / 2), 0);
+      const disponivel  = chuva + irrigacaoMm;
+      const deficit     = Math.round((et0 - disponivel) * 10) / 10;
+
+      return {
+        chuva:       Math.round(chuva * 10) / 10,
+        et0:         Math.round(et0 * 10) / 10,
+        irrigacaoMm: Math.round(irrigacaoMm * 10) / 10,
+        deficit,
+      };
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+// ── Hook: última observação ──────────────────────────────────
+function useUltimaObservacao() {
+  return useQuery({
+    queryKey: ['ultima-observacao'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('observacoes_mudas')
+        .select('data, fase_fenologica, observacoes')
+        .order('data', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return data?.[0] ?? null;
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+// ── Componente principal ─────────────────────────────────────
 export default function HomePage() {
   const navigate = useNavigate();
-  const { data: stats, isLoading: statsLoading } = useMudasStats();
+  const { data: stats,  isLoading: statsLoading   } = useMudasStats();
   const { data: talhoes, isLoading: talhoesLoading } = useTalhoes();
 
-  const statsCards = [
-    {
-      title: 'Total de Mudas',
-      value: stats?.total || 0,
-      icon: Grape,
-      color: 'text-primary',
-      bgColor: 'bg-primary/10',
-    },
-    {
-      title: 'Mudas Ativas',
-      value: stats?.ativas || 0,
-      icon: TrendingUp,
-      color: 'text-status-active',
-      bgColor: 'bg-status-active/10',
-    },
-    {
-      title: 'Em Atenção',
-      value: stats?.atencao || 0,
-      icon: AlertTriangle,
-      color: 'text-status-attention',
-      bgColor: 'bg-status-attention/10',
-    },
-    {
-      title: 'Falhas',
-      value: stats?.falha || 0,
-      icon: XCircle,
-      color: 'text-status-failure',
-      bgColor: 'bg-status-failure/10',
-    },
-  ];
+  const talhao     = talhoes?.[0];
+  const talhaoId   = talhao?.id;
+  const dataPlantio = talhao?.data_plantio;
 
-  const talhao = talhoes?.[0];
+  const { data: climaHoje,  isLoading: climaLoading   } = useClimaHoje(talhaoId);
+  const { data: gddTotal = 0, isLoading: gddLoading   } = useGDDAcumulado(talhaoId, dataPlantio);
+  const { data: balanco,    isLoading: balancoLoading  } = useBalancoHidrico(talhaoId);
+  const { data: ultimaObs,  isLoading: obsLoading      } = useUltimaObservacao();
+
+  const fase        = getFaseMuda(gddTotal);
+  const faseIndex   = FASES_MUDA.indexOf(fase);
+  const progressoGeral = Math.min(100, (gddTotal / 2000) * 100);
+  const precisaIrrigar = balanco && balanco.deficit > 5;
+
+  const diasDesdeObs = ultimaObs
+    ? Math.floor((Date.now() - new Date(ultimaObs.data + 'T12:00:00').getTime()) / 86400000)
+    : null;
 
   return (
     <MainLayout>
-      <div className="p-8">
+      <div className="p-6 space-y-6">
+
         {/* Header */}
-        <div className="mb-8 animate-fade-in">
-          <h1 className="font-display text-3xl font-bold text-foreground mb-2">
-            Bem-vindo ao VinhoTrack
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Sistema de acompanhamento agronômico para mudas de uva
+        <div className="animate-fade-in">
+          <h1 className="font-display text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">
+            {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {statsCards.map((stat, index) => (
-            <Card 
-              key={stat.title} 
-              className="animate-fade-in"
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl ${stat.bgColor} flex items-center justify-center`}>
-                    {statsLoading ? (
-                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                    ) : (
-                      <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                    )}
+        {/* ── Clima hoje ── */}
+        <section className="animate-fade-in" style={{ animationDelay: '50ms' }}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Clima Hoje</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              {
+                label: 'Temperatura',
+                icon: Thermometer,
+                color: 'text-orange-500',
+                bg: 'bg-orange-500/10',
+                value: climaHoje ? `${climaHoje.temp_max?.toFixed(0)}° / ${climaHoje.temp_min?.toFixed(0)}°` : null,
+              },
+              {
+                label: 'Precipitação',
+                icon: CloudRain,
+                color: 'text-blue-500',
+                bg: 'bg-blue-500/10',
+                value: climaHoje ? `${climaHoje.precipitacao_mm?.toFixed(1) ?? '0'} mm` : null,
+              },
+              {
+                label: 'Umidade Máx.',
+                icon: Droplets,
+                color: 'text-sky-500',
+                bg: 'bg-sky-500/10',
+                value: climaHoje ? `${climaHoje.umidade_relativa_max?.toFixed(0) ?? '-'}%` : null,
+              },
+              {
+                label: 'GDD Hoje',
+                icon: Leaf,
+                color: 'text-green-500',
+                bg: 'bg-green-500/10',
+                value: climaHoje ? `+${climaHoje.graus_dia?.toFixed(1) ?? '0'}°` : null,
+              },
+            ].map((item) => (
+              <Card key={item.label}>
+                <CardContent className="pt-5 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-lg ${item.bg} flex items-center justify-center flex-shrink-0`}>
+                      {climaLoading
+                        ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        : <item.icon className={`w-4 h-4 ${item.color}`} />}
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      {climaLoading
+                        ? <div className="h-6 w-16 bg-muted animate-pulse rounded mt-1" />
+                        : item.value
+                          ? <p className="text-lg font-bold leading-tight">{item.value}</p>
+                          : <p className="text-sm text-muted-foreground">Sem dados</p>}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Status das mudas ── */}
+        <section className="animate-fade-in" style={{ animationDelay: '100ms' }}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Status das Mudas</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { title: 'Total',      value: stats?.total,  icon: Grape,          color: 'text-primary',    bg: 'bg-primary/10' },
+              { title: 'Ativas',     value: stats?.ativas, icon: TrendingUp,     color: 'text-green-600',  bg: 'bg-green-500/10' },
+              { title: 'Em Atenção', value: stats?.atencao, icon: AlertTriangle, color: 'text-yellow-600', bg: 'bg-yellow-500/10' },
+              { title: 'Falhas',     value: stats?.falha,  icon: XCircle,        color: 'text-red-600',    bg: 'bg-red-500/10' },
+            ].map((s, i) => (
+              <Card key={s.title} className="animate-fade-in" style={{ animationDelay: `${100 + i * 50}ms` }}>
+                <CardContent className="pt-5 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-lg ${s.bg} flex items-center justify-center`}>
+                      {statsLoading
+                        ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        : <s.icon className={`w-4 h-4 ${s.color}`} />}
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">{s.title}</p>
+                      <p className="text-lg font-bold">{statsLoading ? '-' : s.value}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* ── GDD + Balanço Hídrico ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in" style={{ animationDelay: '200ms' }}>
+
+          {/* GDD / Desenvolvimento */}
+          <Card>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Sprout className="w-4 h-4 text-green-600" />
+                <p className="text-sm font-semibold">Desenvolvimento das Mudas</p>
+              </div>
+
+              {gddLoading ? (
+                <div className="space-y-2">
+                  <div className="h-8 w-32 bg-muted animate-pulse rounded" />
+                  <div className="h-2 w-full bg-muted animate-pulse rounded-full" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-end justify-between mb-3">
+                    <div>
+                      <p className="text-2xl font-bold">{Math.round(gddTotal)} GDD</p>
+                      <p className="text-xs text-muted-foreground">acumulados desde o plantio</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold" style={{ color: fase.cor }}>{fase.label}</p>
+                      <p className="text-xs text-muted-foreground max-w-[140px] text-right">{fase.desc}</p>
+                    </div>
+                  </div>
+
+                  <div className="w-full bg-muted rounded-full h-2 mb-3">
+                    <div
+                      className="h-2 rounded-full transition-all duration-700"
+                      style={{ width: `${progressoGeral}%`, backgroundColor: fase.cor }}
+                    />
+                  </div>
+
+                  <div className="flex gap-1">
+                    {FASES_MUDA.map((f, i) => (
+                      <div key={f.label} className="flex-1 text-center">
+                        <div
+                          className="h-1 rounded-full mb-1 transition-opacity"
+                          style={{ backgroundColor: f.cor, opacity: i <= faseIndex ? 1 : 0.2 }}
+                        />
+                        <p className="text-[10px] text-muted-foreground truncate">{f.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Balanço Hídrico */}
+          <Card className={precisaIrrigar ? 'border-orange-400' : ''}>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Droplets className="w-4 h-4 text-blue-500" />
+                  <p className="text-sm font-semibold">Balanço Hídrico — 7 dias</p>
+                </div>
+                {!balancoLoading && balanco && (
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    precisaIrrigar ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                  }`}>
+                    {precisaIrrigar ? '⚠️ Irrigar' : '✅ Ok'}
+                  </span>
+                )}
+              </div>
+
+              {balancoLoading ? (
+                <div className="grid grid-cols-3 gap-3">
+                  {[0,1,2].map(i => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
+                </div>
+              ) : balanco ? (
+                <>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="bg-muted/50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Chuva</p>
+                      <p className="text-lg font-bold text-blue-600">{balanco.chuva} mm</p>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">ET₀</p>
+                      <p className="text-lg font-bold text-orange-600">{balanco.et0} mm</p>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">Déficit</p>
+                      <p className={`text-lg font-bold ${balanco.deficit > 5 ? 'text-orange-600' : 'text-green-600'}`}>
+                        {balanco.deficit > 0 ? `+${balanco.deficit}` : balanco.deficit} mm
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {precisaIrrigar
+                      ? `As mudas estão com déficit de ${balanco.deficit} mm — considere irrigar hoje.`
+                      : 'Disponibilidade hídrica adequada para as mudas esta semana.'}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sem dados climáticos disponíveis.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Última observação + info projeto ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in" style={{ animationDelay: '300ms' }}>
+
+          <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate('/mudas')}>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <ClipboardList className="w-4 h-4 text-primary" />
+                <p className="text-sm font-semibold">Última Observação de Campo</p>
+              </div>
+              {obsLoading ? (
+                <div className="space-y-2">
+                  <div className="h-5 w-24 bg-muted animate-pulse rounded" />
+                  <div className="h-4 w-full bg-muted animate-pulse rounded" />
+                </div>
+              ) : ultimaObs ? (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                      {ultimaObs.fase_fenologica}
+                    </span>
+                    <span className={`text-xs font-semibold ${diasDesdeObs && diasDesdeObs > 7 ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                      {diasDesdeObs === 0 ? 'Hoje' : diasDesdeObs === 1 ? 'Ontem' : `Há ${diasDesdeObs} dias`}
+                    </span>
+                  </div>
+                  {ultimaObs.observacoes && (
+                    <p className="text-sm text-muted-foreground line-clamp-2">{ultimaObs.observacoes}</p>
+                  )}
+                  {diasDesdeObs && diasDesdeObs > 7 && (
+                    <p className="text-xs text-orange-600 mt-2 font-medium">
+                      ⚠️ Monitoramento atrasado — última visita há {diasDesdeObs} dias
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nenhuma observação registrada ainda.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Grape className="w-4 h-4 text-primary" />
+                <p className="text-sm font-semibold">Sobre o Projeto</p>
+              </div>
+              {talhoesLoading ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {[0,1,2,3].map(i => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
+                </div>
+              ) : talhao ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Variedade</p>
+                    <p className="font-semibold">{talhao.variedade}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-bold text-foreground">
-                      {statsLoading ? '-' : stat.value}
+                    <p className="text-xs text-muted-foreground">Talhão</p>
+                    <p className="font-semibold">{talhao.codigo}{talhao.nome && ` — ${talhao.nome}`}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Plantio</p>
+                    <p className="font-semibold">
+                      {new Date(talhao.data_plantio + 'T12:00:00').toLocaleDateString('pt-BR', {
+                        day: 'numeric', month: 'short', year: 'numeric',
+                      })}
                     </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Fase Atual</p>
+                    <p className="font-semibold" style={{ color: fase.cor }}>{fase.label}</p>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="animate-fade-in" style={{ animationDelay: '400ms' }}>
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <List className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-display text-lg font-semibold mb-2">Lista de Mudas</h3>
-                  <p className="text-muted-foreground text-sm mb-4">
-                    Visualize todas as mudas cadastradas, filtre por linha e acesse os detalhes de cada planta.
-                  </p>
-                  <Button onClick={() => navigate('/mudas')}>
-                    Ver Mudas
-                  </Button>
-                </div>
-              </div>
+              ) : (
+                <p className="text-muted-foreground text-sm">Nenhum talhão cadastrado.</p>
+              )}
             </CardContent>
           </Card>
 
-          <Card className="animate-fade-in" style={{ animationDelay: '500ms' }}>
-            <CardContent className="p-6">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Map className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-display text-lg font-semibold mb-2">Mapa do Vinhedo</h3>
-                  <p className="text-muted-foreground text-sm mb-4">
-                    Visualização espacial do vinhedo com status de cada muda em tempo real.
-                  </p>
-                  <Button onClick={() => navigate('/mapa')}>
-                    Ver Mapa
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
-
-        {/* Info Section */}
-        <Card className="mt-8 animate-fade-in" style={{ animationDelay: '600ms' }}>
-          <CardContent className="p-6">
-            <h3 className="font-display text-lg font-semibold mb-4">Sobre o Projeto</h3>
-            {talhoesLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Carregando informações...
-              </div>
-            ) : talhao ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Variedade</p>
-                  <p className="font-semibold">{talhao.variedade}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Talhão</p>
-                  <p className="font-semibold">{talhao.codigo} {talhao.nome && `- ${talhao.nome}`}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Data de Plantio</p>
-                  <p className="font-semibold">
-                    {new Date(talhao.data_plantio + 'T12:00:00').toLocaleDateString('pt-BR', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <p className="text-muted-foreground">Nenhum talhão cadastrado ainda.</p>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </MainLayout>
   );
