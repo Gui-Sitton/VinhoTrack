@@ -16,7 +16,7 @@ import IrrigacoesPage from "./pages/IrrigacoesPage";
 import AuthPage from "./pages/AuthPage";
 import ReferenciasFenologicasPage from "./pages/ReferenciasFenologicasPage";
 import NotFound from "./pages/NotFound";
-
+import ClimaPage from "./pages/ClimaPage.tsx";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -36,6 +36,7 @@ const App = () => (
             <Route path="/aplicacoes" element={<ProtectedRoute><AplicacoesPage /></ProtectedRoute>} />
             <Route path="/irrigacoes" element={<ProtectedRoute><IrrigacoesPage /></ProtectedRoute>} />
             <Route path="/relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
+            <Route path="/clima" element={<ProtectedRoute><ClimaPage /></ProtectedRoute>} />
             <Route path="/referencias-fenologicas" element={<ProtectedRoute><ReferenciasFenologicasPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

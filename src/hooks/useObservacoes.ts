@@ -16,6 +16,10 @@ export interface ObservacaoMudaUpdate {
   fase_fenologica?: string;
   altura_cm?: number | null;
   observacoes?: string | null;
+  diametro_caule_mm?: number | null;
+  numero_nos?: number | null;
+  atingiu_arame?: boolean | null;
+  necessita_tutoramento?: boolean | null;
 }
 
 export interface ObservacaoGrupoUpdate {
@@ -79,7 +83,7 @@ export function useUpdateObservacaoMuda() {
         .from('observacoes_mudas')
         .update(updates)
         .eq('id', id)
-        .select('id, muda_id, data, fase_fenologica, altura_cm, observacoes, created_at')
+        .select('id, muda_id, data, fase_fenologica, altura_cm, observacoes, diametro_caule_mm, numero_nos, atingiu_arame, necessita_tutoramento, created_at')
         .single();
 
       if (error) {
