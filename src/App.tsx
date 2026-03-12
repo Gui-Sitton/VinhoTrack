@@ -17,6 +17,7 @@ import AuthPage from "./pages/AuthPage";
 import ReferenciasFenologicasPage from "./pages/ReferenciasFenologicasPage";
 import NotFound from "./pages/NotFound";
 import ClimaPage from "./pages/ClimaPage.tsx";
+import SessaoObservacaoPage from '@/pages/SessaoObservacaoPage.tsx';
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -31,7 +32,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
             <Route path="/mudas" element={<ProtectedRoute><MudasPage /></ProtectedRoute>} />
             <Route path="/mudas/:id" element={<ProtectedRoute><MudaDetailPage /></ProtectedRoute>} />
-            <Route path="/observacao" element={<ProtectedRoute><NovaObservacaoPage /></ProtectedRoute>} />
+            <Route path="/observacao" element={<SessaoObservacaoPage />} />
             <Route path="/mapa" element={<ProtectedRoute><MapaVinhedoPage /></ProtectedRoute>} />
             <Route path="/aplicacoes" element={<ProtectedRoute><AplicacoesPage /></ProtectedRoute>} />
             <Route path="/irrigacoes" element={<ProtectedRoute><IrrigacoesPage /></ProtectedRoute>} />
