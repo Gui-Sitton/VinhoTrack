@@ -20,6 +20,15 @@ function getFaseMuda(gdd: number) {
     ?? FASES_MUDA[FASES_MUDA.length - 1];
 }
 
+// Mapeia o valor salvo no banco (fase_gdd) para o objeto FASES_MUDA
+const FASE_GDD_MAP: Record<string, typeof FASES_MUDA[0]> = {
+  estabelecimento: FASES_MUDA[0],
+  brotacao:        FASES_MUDA[1],
+  crescimento_vegetativo: FASES_MUDA[2],
+  lignificacao:    FASES_MUDA[3],
+  maturacao:       FASES_MUDA[4],
+};
+
 // ── Hook: clima de hoje ──────────────────────────────────────
 function useClimaHoje(talhaoId?: string) {
   const hoje = new Date().toISOString().slice(0, 10);
@@ -122,6 +131,24 @@ function useUltimaObservacao() {
   });
 }
 
+// ── Hook: fase GDD da última observação registrada ──────────
+function useFaseGddObservada() {
+  return useQuery({
+    queryKey: ['fase-gdd-observada'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('observacoes_mudas')
+        .select('fase_gdd')
+        .not('fase_gdd', 'is', null)
+        .order('data', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return (data?.[0] as any)?.fase_gdd ?? null;
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
 // ── Componente principal ─────────────────────────────────────
 export default function HomePage() {
   const navigate = useNavigate();
@@ -136,8 +163,10 @@ export default function HomePage() {
   const { data: gddTotal = 0, isLoading: gddLoading   } = useGDDAcumulado(talhaoId, dataPlantio);
   const { data: balanco,    isLoading: balancoLoading  } = useBalancoHidrico(talhaoId);
   const { data: ultimaObs,  isLoading: obsLoading      } = useUltimaObservacao();
+  const { data: faseGddObs                             } = useFaseGddObservada();
 
-  const fase        = getFaseMuda(gddTotal);
+  // Usa fase do banco se disponível, senão calcula pelo GDD
+  const fase        = faseGddObs ? (FASE_GDD_MAP[faseGddObs] ?? getFaseMuda(gddTotal)) : getFaseMuda(gddTotal);
   const faseIndex   = FASES_MUDA.indexOf(fase);
   const progressoGeral = Math.min(100, (gddTotal / 2000) * 100);
   const precisaIrrigar = balanco && balanco.deficit > 5;
