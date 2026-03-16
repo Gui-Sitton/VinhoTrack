@@ -250,6 +250,7 @@ export default function SessaoObservacaoPage() {
     const { error } = await supabase.from('observacoes_mudas' as any).insert(({
       muda_id: muda.id,
       data: new Date().toISOString().split('T')[0],
+      fase_fenologica: 'crescimento_vegetativo',
       altura_cm: parseFloat(formData.altura_cm),
       diametro_caule_mm: formData.diametro_caule_mm ? parseFloat(formData.diametro_caule_mm) : null,
       numero_nos: formData.numero_nos ? parseInt(formData.numero_nos) : null,
