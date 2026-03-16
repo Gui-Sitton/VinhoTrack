@@ -44,6 +44,7 @@ interface FormData {
   atingiu_arame: boolean;
   necessita_tutoramento: boolean;
   observacoes: string;
+  fase_fenologica: string;
 }
 
 const FORM_VAZIO: FormData = {
@@ -53,7 +54,31 @@ const FORM_VAZIO: FormData = {
   atingiu_arame: false,
   necessita_tutoramento: false,
   observacoes: '',
+  fase_fenologica: '',
 };
+
+// ─── Fases fenológicas ────────────────────────────────────────────────────────
+
+const FASES_VISUAIS = [
+  { value: 'dormencia',              label: 'Dormência' },
+  { value: 'inchamento_gemeas',      label: 'Inchamento de gemas' },
+  { value: 'brotacao',               label: 'Brotação' },
+  { value: 'crescimento_vegetativo', label: 'Crescimento vegetativo' },
+  { value: 'lignificacao',           label: 'Lignificação' },
+  { value: 'maturacao',              label: 'Maturação' },
+];
+
+const FASES_GDD = [
+  { label: 'estabelecimento',        gddMin: 0,    gddMax: 150  },
+  { label: 'brotacao',               gddMin: 150,  gddMax: 400  },
+  { label: 'crescimento_vegetativo', gddMin: 400,  gddMax: 800  },
+  { label: 'lignificacao',           gddMin: 800,  gddMax: 1300 },
+  { label: 'maturacao',              gddMin: 1300, gddMax: 9999 },
+];
+
+function calcFaseGdd(gdd: number): string {
+  return (FASES_GDD.find(f => gdd >= f.gddMin && gdd < f.gddMax) ?? FASES_GDD[FASES_GDD.length - 1]).label;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,6 +128,7 @@ export default function SessaoObservacaoPage() {
   const [concluidas, setConcluidas] = useState<Set<string>>(new Set());
   const [puladas, setPuladas] = useState<Set<string>>(new Set());
   const [loadingStats, setLoadingStats] = useState(true);
+  const [gddAcumulado, setGddAcumulado] = useState(0);
   const [loadingMudas, setLoadingMudas] = useState(false);
   const [talhaoId, setTalhaoId] = useState<string | null>(null);
 
@@ -111,10 +137,24 @@ export default function SessaoObservacaoPage() {
     async function fetchTalhao() {
       const { data } = await supabase
         .from('talhoes' as any)
-        .select('id')
+        .select('id, data_plantio')
         .limit(1)
         .single();
-      if (data) setTalhaoId((data as any).id);
+      if (!data) return;
+      const tId = (data as any).id;
+      const dataPlantio = (data as any).data_plantio;
+      setTalhaoId(tId);
+
+      // Busca GDD acumulado desde o plantio
+      if (dataPlantio) {
+        const { data: climaData } = await supabase
+          .from('clima_diario' as any)
+          .select('graus_dia')
+          .eq('talhao_id', tId)
+          .gte('data', dataPlantio);
+        const total = (climaData ?? []).reduce((acc: number, r: any) => acc + (r.graus_dia ?? 0), 0);
+        setGddAcumulado(Math.round(total));
+      }
     }
     fetchTalhao();
   }, []);
@@ -246,11 +286,16 @@ export default function SessaoObservacaoPage() {
       toast({ title: 'Altura obrigatória', variant: 'destructive' });
       return;
     }
+    if (!formData.fase_fenologica) {
+      toast({ title: 'Fase fenológica obrigatória', variant: 'destructive' });
+      return;
+    }
     setSalvando(true);
     const { error } = await supabase.from('observacoes_mudas' as any).insert(({
       muda_id: muda.id,
       data: new Date().toISOString().split('T')[0],
-      fase_fenologica: 'crescimento_vegetativo',
+      fase_fenologica: formData.fase_fenologica || 'crescimento_vegetativo',
+      fase_gdd: calcFaseGdd(gddAcumulado),
       altura_cm: parseFloat(formData.altura_cm),
       diametro_caule_mm: formData.diametro_caule_mm ? parseFloat(formData.diametro_caule_mm) : null,
       numero_nos: formData.numero_nos ? parseInt(formData.numero_nos) : null,
@@ -657,6 +702,34 @@ export default function SessaoObservacaoPage() {
                 <AlertCircle size={15} className={formData.necessita_tutoramento ? 'text-amber-600' : 'text-muted-foreground'} />
                 Tutoramento
               </button>
+            </div>
+
+            {/* Fase visual + GDD */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">
+                  Fase visual <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.fase_fenologica}
+                  onChange={e => setFormData(p => ({ ...p, fase_fenologica: e.target.value }))}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">Selecione...</option>
+                  {FASES_VISUAIS.map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1.5 block">
+                  Fase GDD
+                </label>
+                <div className="h-9 rounded-md border border-input bg-muted px-3 py-1 text-sm flex items-center text-muted-foreground">
+                  {calcFaseGdd(gddAcumulado).replace(/_/g, ' ')}
+                  <span className="ml-auto text-xs opacity-60">{gddAcumulado} GDD</span>
+                </div>
+              </div>
             </div>
 
             {/* Observações */}
