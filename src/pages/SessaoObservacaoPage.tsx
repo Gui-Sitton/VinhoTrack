@@ -249,7 +249,7 @@ export default function SessaoObservacaoPage() {
     setSalvando(true);
     const { error } = await supabase.from('observacoes_mudas' as any).insert(({
       muda_id: muda.id,
-      data_observacao: new Date().toISOString().split('T')[0],
+      data: new Date().toISOString().split('T')[0],
       altura_cm: parseFloat(formData.altura_cm),
       diametro_caule_mm: formData.diametro_caule_mm ? parseFloat(formData.diametro_caule_mm) : null,
       numero_nos: formData.numero_nos ? parseInt(formData.numero_nos) : null,
