@@ -16,24 +16,25 @@ export default function AcceptInvitePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tokenValido, setTokenValido] = useState<boolean | null>(null);
 
-  // Verifica e estabelece sessão com o token do convite
   useEffect(() => {
     const hash = window.location.hash;
     const params = new URLSearchParams(hash.replace('#', ''));
     const tipo = params.get('type');
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token') ?? '';
+    const tokenHash = params.get('access_token');
 
-    if (tipo === 'invite' && accessToken) {
-      // Estabelece a sessão com o token do link antes de qualquer operação
-      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
-        .then(({ error }) => {
-          if (error) {
-            setTokenValido(false);
-          } else {
-            setTokenValido(true);
-          }
-        });
+    if (tipo === 'invite' && tokenHash) {
+      // Verifica o token OTP do convite
+      supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: 'invite',
+      }).then(({ error }) => {
+        if (error) {
+          console.error('verifyOtp error:', error.message);
+          setTokenValido(false);
+        } else {
+          setTokenValido(true);
+        }
+      });
     } else {
       setTokenValido(false);
     }
@@ -48,7 +49,6 @@ export default function AcceptInvitePage() {
       toast({ title: 'Senhas diferentes', description: 'As senhas não coincidem.', variant: 'destructive' });
       return;
     }
-
     setIsSubmitting(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
@@ -63,7 +63,6 @@ export default function AcceptInvitePage() {
     }
   };
 
-  // Carregando verificação
   if (tokenValido === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -72,7 +71,6 @@ export default function AcceptInvitePage() {
     );
   }
 
-  // Token inválido ou acesso direto — bloqueia
   if (!tokenValido) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
@@ -98,7 +96,6 @@ export default function AcceptInvitePage() {
     );
   }
 
-  // Token válido — mostra formulário
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
       <Card className="w-full max-w-md">
