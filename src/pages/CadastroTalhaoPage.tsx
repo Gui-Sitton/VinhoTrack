@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Grape, Loader2, MapPin } from 'lucide-react';
+import { Grape, Loader2, MapPin, ChevronRight, ChevronLeft, CheckCircle2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 const VARIEDADES = [
@@ -25,8 +25,10 @@ export default function CadastroTalhaoPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const [etapa, setEtapa] = useState<1 | 2>(1);
   const [salvando, setSalvando] = useState(false);
   const [buscandoLocalizacao, setBuscandoLocalizacao] = useState(false);
+
   const [form, setForm] = useState({
     codigo: '',
     nome: '',
@@ -40,8 +42,24 @@ export default function CadastroTalhaoPage() {
     longitude: '',
   });
 
+  const [mudaConfig, setMudaConfig] = useState({
+    num_linhas: '',
+    plantas_por_linha: '',
+    prefixo: 'M',
+  });
+
+  const totalMudas = (() => {
+    const l = parseInt(mudaConfig.num_linhas) || 0;
+    const p = parseInt(mudaConfig.plantas_por_linha) || 0;
+    return l * p;
+  })();
+
   function set(field: string, value: string) {
     setForm(p => ({ ...p, [field]: value }));
+  }
+
+  function setMuda(field: string, value: string) {
+    setMudaConfig(p => ({ ...p, [field]: value }));
   }
 
   function buscarLocalizacao() {
@@ -67,9 +85,20 @@ export default function CadastroTalhaoPage() {
     );
   }
 
-  async function salvar() {
+  function avancarParaMudas() {
     if (!form.codigo || !form.variedade || !form.data_plantio) {
       toast({ title: 'Preencha os campos obrigatórios', variant: 'destructive' });
+      return;
+    }
+    setEtapa(2);
+  }
+
+  async function salvar() {
+    const numLinhas = parseInt(mudaConfig.num_linhas);
+    const plantasPorLinha = parseInt(mudaConfig.plantas_por_linha);
+
+    if (!numLinhas || !plantasPorLinha || numLinhas < 1 || plantasPorLinha < 1) {
+      toast({ title: 'Informe o número de linhas e plantas', variant: 'destructive' });
       return;
     }
 
@@ -78,24 +107,55 @@ export default function CadastroTalhaoPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const { error } = await supabase.from('talhoes').insert({
-        codigo: form.codigo.toUpperCase(),
-        nome: form.nome || null,
-        variedade: form.variedade,
-        data_plantio: form.data_plantio,
-        area_ha: form.area_ha ? parseFloat(form.area_ha) : null,
-        espacamento_linhas_m: parseFloat(form.espacamento_linhas_m) || 3.0,
-        espacamento_plantas_m: parseFloat(form.espacamento_plantas_m) || 1.5,
-        porta_enxerto: form.porta_enxerto || null,
-        latitude: form.latitude ? parseFloat(form.latitude) : null,
-        longitude: form.longitude ? parseFloat(form.longitude) : null,
-        user_id: user.id,
-      });
+      // 1. Cria o talhão
+      const { data: talhao, error: talhaoError } = await supabase
+        .from('talhoes')
+        .insert({
+          codigo: form.codigo.toUpperCase(),
+          nome: form.nome || null,
+          variedade: form.variedade,
+          data_plantio: form.data_plantio,
+          area_ha: form.area_ha ? parseFloat(form.area_ha) : null,
+          espacamento_linhas_m: parseFloat(form.espacamento_linhas_m) || 3.0,
+          espacamento_plantas_m: parseFloat(form.espacamento_plantas_m) || 1.5,
+          porta_enxerto: form.porta_enxerto || null,
+          latitude: form.latitude ? parseFloat(form.latitude) : null,
+          longitude: form.longitude ? parseFloat(form.longitude) : null,
+          user_id: user.id,
+        })
+        .select('id')
+        .single();
 
-      if (error) throw error;
+      if (talhaoError || !talhao) throw talhaoError ?? new Error('Erro ao criar talhão');
+
+      // 2. Gera mudas em lotes de 500
+      const mudas = [];
+      let contador = 1;
+      for (let linha = 1; linha <= numLinhas; linha++) {
+        for (let planta = 1; planta <= plantasPorLinha; planta++) {
+          const codigo = `${mudaConfig.prefixo}${String(contador).padStart(4, '0')}`;
+          mudas.push({
+            talhao_id: talhao.id,
+            codigo,
+            linha,
+            planta_na_linha: planta,
+            status: 'ativa',
+            data_plantio: form.data_plantio,
+          });
+          contador++;
+        }
+      }
+
+      const LOTE = 500;
+      for (let i = 0; i < mudas.length; i += LOTE) {
+        const { error } = await supabase.from('mudas').insert(mudas.slice(i, i + LOTE));
+        if (error) throw error;
+      }
 
       await queryClient.invalidateQueries({ queryKey: ['talhoes'] });
-      toast({ title: 'Talhão cadastrado!', description: 'Bem-vindo ao VinhoTrack.' });
+      await queryClient.invalidateQueries({ queryKey: ['mudas'] });
+
+      toast({ title: `Talhão criado com ${mudas.length} mudas!` });
       navigate('/');
     } catch (err: any) {
       toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
@@ -117,174 +177,206 @@ export default function CadastroTalhaoPage() {
           </div>
           <h1 className="text-2xl font-bold text-foreground">Configure seu talhão</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Cadastre as informações do seu vinhedo para começar
+            {etapa === 1 ? 'Informações do vinhedo' : 'Grade de mudas'}
           </p>
         </div>
 
-        {/* Identificação */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Identificação</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="codigo">
-                  Código <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="codigo"
-                  placeholder="ex: T1"
-                  value={form.codigo}
-                  onChange={e => set('codigo', e.target.value)}
-                />
+        {/* Steps indicator */}
+        <div className="flex items-center justify-center gap-3">
+          {[1, 2].map(s => (
+            <div key={s} className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors ${
+                etapa === s
+                  ? 'bg-primary text-primary-foreground'
+                  : etapa > s
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-muted text-muted-foreground'
+              }`}>
+                {etapa > s ? <CheckCircle2 size={16} /> : s}
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="nome">Nome</Label>
-                <Input
-                  id="nome"
-                  placeholder="ex: Parcela Norte"
-                  value={form.nome}
-                  onChange={e => set('nome', e.target.value)}
-                />
-              </div>
+              {s < 2 && <div className={`w-12 h-0.5 ${etapa > s ? 'bg-emerald-500' : 'bg-muted'}`} />}
             </div>
+          ))}
+        </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="variedade">
-                Variedade <span className="text-red-500">*</span>
-              </Label>
-              <select
-                id="variedade"
-                value={form.variedade}
-                onChange={e => set('variedade', e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">Selecione...</option>
-                {VARIEDADES.map(v => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </div>
+        {/* ── ETAPA 1: Talhão ── */}
+        {etapa === 1 && (
+          <>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Identificação</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Código <span className="text-red-500">*</span></Label>
+                    <Input placeholder="ex: T1" value={form.codigo} onChange={e => set('codigo', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Nome</Label>
+                    <Input placeholder="ex: Parcela Norte" value={form.nome} onChange={e => set('nome', e.target.value)} />
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="data_plantio">
-                  Data de plantio <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="data_plantio"
-                  type="date"
-                  value={form.data_plantio}
-                  onChange={e => set('data_plantio', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="area_ha">Área (ha)</Label>
-                <Input
-                  id="area_ha"
-                  type="number"
-                  step="0.01"
-                  placeholder="ex: 1.5"
-                  value={form.area_ha}
-                  onChange={e => set('area_ha', e.target.value)}
-                />
-              </div>
-            </div>
+                <div className="space-y-1.5">
+                  <Label>Variedade <span className="text-red-500">*</span></Label>
+                  <select
+                    value={form.variedade}
+                    onChange={e => set('variedade', e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Selecione...</option>
+                    {VARIEDADES.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="porta_enxerto">Porta-enxerto</Label>
-              <select
-                id="porta_enxerto"
-                value={form.porta_enxerto}
-                onChange={e => set('porta_enxerto', e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                <option value="">Selecione...</option>
-                {PORTA_ENXERTOS.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Data de plantio <span className="text-red-500">*</span></Label>
+                    <Input type="date" value={form.data_plantio} onChange={e => set('data_plantio', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Área (ha)</Label>
+                    <Input type="number" step="0.01" placeholder="ex: 1.5" value={form.area_ha} onChange={e => set('area_ha', e.target.value)} />
+                  </div>
+                </div>
 
-        {/* Espaçamento */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Espaçamento</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="espacamento_linhas">Entre linhas (m)</Label>
-                <Input
-                  id="espacamento_linhas"
-                  type="number"
-                  step="0.1"
-                  value={form.espacamento_linhas_m}
-                  onChange={e => set('espacamento_linhas_m', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="espacamento_plantas">Entre plantas (m)</Label>
-                <Input
-                  id="espacamento_plantas"
-                  type="number"
-                  step="0.1"
-                  value={form.espacamento_plantas_m}
-                  onChange={e => set('espacamento_plantas_m', e.target.value)}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="space-y-1.5">
+                  <Label>Porta-enxerto</Label>
+                  <select
+                    value={form.porta_enxerto}
+                    onChange={e => set('porta_enxerto', e.target.value)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">Selecione...</option>
+                    {PORTA_ENXERTOS.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Localização */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Localização</CardTitle>
-            <CardDescription className="text-xs">
-              Necessária para coleta automática de dados climáticos
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={buscarLocalizacao}
-              disabled={buscandoLocalizacao}
-            >
-              {buscandoLocalizacao
-                ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                : <MapPin className="h-4 w-4 mr-2" />}
-              Usar minha localização atual
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Espaçamento</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Entre linhas (m)</Label>
+                    <Input type="number" step="0.1" value={form.espacamento_linhas_m} onChange={e => set('espacamento_linhas_m', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Entre plantas (m)</Label>
+                    <Input type="number" step="0.1" value={form.espacamento_plantas_m} onChange={e => set('espacamento_plantas_m', e.target.value)} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Localização</CardTitle>
+                <CardDescription className="text-xs">Necessária para coleta automática de dados climáticos</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button type="button" variant="outline" className="w-full" onClick={buscarLocalizacao} disabled={buscandoLocalizacao}>
+                  {buscandoLocalizacao ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <MapPin className="h-4 w-4 mr-2" />}
+                  Usar minha localização atual
+                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Latitude</Label>
+                    <Input placeholder="ex: -29.168771" value={form.latitude} onChange={e => set('latitude', e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Longitude</Label>
+                    <Input placeholder="ex: -51.179504" value={form.longitude} onChange={e => set('longitude', e.target.value)} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Button className="w-full h-11" onClick={avancarParaMudas}>
+              Próximo — Configurar mudas
+              <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
+          </>
+        )}
+
+        {/* ── ETAPA 2: Mudas ── */}
+        {etapa === 2 && (
+          <>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Grade de mudas</CardTitle>
+                <CardDescription className="text-xs">
+                  Os códigos serão gerados automaticamente (M0001, M0002...)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Nº de linhas <span className="text-red-500">*</span></Label>
+                    <Input
+                      type="number"
+                      placeholder="ex: 6"
+                      value={mudaConfig.num_linhas}
+                      onChange={e => setMuda('num_linhas', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Plantas por linha <span className="text-red-500">*</span></Label>
+                    <Input
+                      type="number"
+                      placeholder="ex: 192"
+                      value={mudaConfig.plantas_por_linha}
+                      onChange={e => setMuda('plantas_por_linha', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Prefixo do código</Label>
+                  <Input
+                    placeholder="ex: M"
+                    maxLength={3}
+                    value={mudaConfig.prefixo}
+                    onChange={e => setMuda('prefixo', e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Exemplo: prefixo "M" gera M0001, M0002...
+                  </p>
+                </div>
+
+                {totalMudas > 0 && (
+                  <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
+                    <p className="text-sm font-semibold text-emerald-800">
+                      {totalMudas.toLocaleString('pt-BR')} mudas serão criadas
+                    </p>
+                    <p className="text-xs text-emerald-600 mt-0.5">
+                      {mudaConfig.prefixo}0001 até {mudaConfig.prefixo}{String(totalMudas).padStart(4, '0')}
+                      {' · '}{mudaConfig.num_linhas} linhas × {mudaConfig.plantas_por_linha} plantas
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="latitude">Latitude</Label>
-                <Input
-                  id="latitude"
-                  placeholder="ex: -29.123456"
-                  value={form.latitude}
-                  onChange={e => set('latitude', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="longitude">Longitude</Label>
-                <Input
-                  id="longitude"
-                  placeholder="ex: -51.123456"
-                  value={form.longitude}
-                  onChange={e => set('longitude', e.target.value)}
-                />
-              </div>
+              <Button variant="outline" className="h-11" onClick={() => setEtapa(1)}>
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Button>
+              <Button className="h-11" onClick={salvar} disabled={salvando || totalMudas === 0}>
+                {salvando ? (
+                  <><Loader2 className="h-4 w-4 animate-spin mr-2" />Criando...</>
+                ) : (
+                  <>Criar talhão</>
+                )}
+              </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        <Button className="w-full h-11" onClick={salvar} disabled={salvando}>
-          {salvando && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-          Criar talhão e entrar
-        </Button>
+          </>
+        )}
 
         <div className="h-4" />
       </div>
