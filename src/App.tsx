@@ -18,6 +18,7 @@ import ReferenciasFenologicasPage from "./pages/ReferenciasFenologicasPage";
 import NotFound from "./pages/NotFound";
 import ClimaPage from "./pages/ClimaPage.tsx";
 import SessaoObservacaoPage from '@/pages/SessaoObservacaoPage.tsx';
+import AcceptInvitePage from './pages/AcceptInvitePage';
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -30,6 +31,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+            <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/mudas" element={<ProtectedRoute><MudasPage /></ProtectedRoute>} />
             <Route path="/mudas/:id" element={<ProtectedRoute><MudaDetailPage /></ProtectedRoute>} />
             <Route path="/observacao" element={<SessaoObservacaoPage />} />
