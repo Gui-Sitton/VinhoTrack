@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ProtectedRoute, AuthRoute } from '@/components/ProtectedRoute';
 import HomePage from "./pages/HomePage";
 import MudasPage from "./pages/MudasPage";
 import MudaDetailPage from "./pages/MudaDetailPage";
@@ -34,6 +34,7 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/mudas" element={<ProtectedRoute><MudasPage /></ProtectedRoute>} />
+            <Route path="/setup" element={<AuthRoute><CadastroTalhaoPage /></AuthRoute>} />
             <Route path="/mudas/:id" element={<ProtectedRoute><MudaDetailPage /></ProtectedRoute>} />
             <Route path="/observacao" element={<SessaoObservacaoPage />} />
             <Route path="/mapa" element={<ProtectedRoute><MapaVinhedoPage /></ProtectedRoute>} />
