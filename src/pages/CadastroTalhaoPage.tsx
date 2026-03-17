@@ -154,9 +154,10 @@ export default function CadastroTalhaoPage() {
 
       await queryClient.invalidateQueries({ queryKey: ['talhoes'] });
       await queryClient.invalidateQueries({ queryKey: ['mudas'] });
+      await queryClient.refetchQueries({ queryKey: ['talhoes'] });
 
       toast({ title: `Talhão criado com ${mudas.length} mudas!` });
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err: any) {
       toast({ title: 'Erro ao salvar', description: err.message, variant: 'destructive' });
     } finally {
