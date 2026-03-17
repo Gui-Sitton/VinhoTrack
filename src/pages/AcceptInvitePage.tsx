@@ -16,16 +16,24 @@ export default function AcceptInvitePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tokenValido, setTokenValido] = useState<boolean | null>(null);
 
-  // Verifica se há um token de convite válido no hash da URL
+  // Verifica e estabelece sessão com o token do convite
   useEffect(() => {
     const hash = window.location.hash;
     const params = new URLSearchParams(hash.replace('#', ''));
     const tipo = params.get('type');
-    const token = params.get('access_token');
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token') ?? '';
 
-    // Só permite acesso se vier com type=invite e access_token
-    if (tipo === 'invite' && token) {
-      setTokenValido(true);
+    if (tipo === 'invite' && accessToken) {
+      // Estabelece a sessão com o token do link antes de qualquer operação
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => {
+          if (error) {
+            setTokenValido(false);
+          } else {
+            setTokenValido(true);
+          }
+        });
     } else {
       setTokenValido(false);
     }
