@@ -1,4 +1,4 @@
-import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets, Droplet, LogOut, BookOpen, Cloud } from 'lucide-react';
+import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets, Droplet, LogOut, BookOpen, Cloud, Bug } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,16 +6,16 @@ import { useMudasStats, useTalhoes } from '@/hooks/useMudas';
 import { Button } from '@/components/ui/button';
 
 const menuItems = [
-  { title: 'Início', url: '/', icon: Home },
-  { title: 'Mudas', url: '/mudas', icon: List },
-  { title: 'Mapa do Vinhedo', url: '/mapa', icon: Map },
-  { title: 'Aplicações', url: '/aplicacoes', icon: Droplets },
-  { title: 'Irrigação', url: '/irrigacoes', icon: Droplet },
-  { title: 'Clima', url: '/clima', icon: Cloud },
-  { title: 'Relatórios', url: '/relatorios', icon: FileBarChart },
+  { title: 'Início',           url: '/',                      icon: Home },
+  { title: 'Mudas',            url: '/mudas',                 icon: List },
+  { title: 'Mapa do Vinhedo',  url: '/mapa',                  icon: Map },
+  { title: 'Aplicações',       url: '/aplicacoes',            icon: Droplets },
+  { title: 'Irrigação',        url: '/irrigacoes',            icon: Droplet },
+  { title: 'Clima',            url: '/clima',                 icon: Cloud },
+  { title: 'Relatórios',       url: '/relatorios',            icon: FileBarChart },
   { title: 'Ref. Fenológicas', url: '/referencias-fenologicas', icon: BookOpen },
-  { title: 'Nova Observação', url: '/observacao', icon: PlusCircle },
-  
+  { title: 'Nova Observação',  url: '/observacao',            icon: PlusCircle },
+  { title: 'Ocorrências',      url: '/ocorrencias-fungicas',  icon: Bug },
 ];
 
 export function AppSidebar() {
