@@ -128,12 +128,27 @@ export default function CadastroTalhaoPage() {
 
       if (talhaoError || !talhao) throw talhaoError ?? new Error('Erro ao criar talhão');
 
-      // 2. Gera mudas em lotes de 500
+      // 2. Gera mudas com grupos e sentinelas
       const mudas = [];
       let contador = 1;
+      const totalMudasCalc = numLinhas * plantasPorLinha;
+      const grupos = ['A', 'B', 'C', 'D'] as const;
+
+      // Pré-calcula os índices globais de cada muda (0-based) para NTILE(4)
+      // e as sentinelas por linha (primeira, meio, última)
       for (let linha = 1; linha <= numLinhas; linha++) {
+        // Sentinelas desta linha: primeira, meio e última planta
+        const meioPlanta = Math.ceil(plantasPorLinha / 2);
+        const sentinelasPosicoes = new Set([1, meioPlanta, plantasPorLinha]);
+
         for (let planta = 1; planta <= plantasPorLinha; planta++) {
           const codigo = `${mudaConfig.prefixo}${String(contador).padStart(4, '0')}`;
+          // índice global 0-based para NTILE(4)
+          const idxGlobal = contador - 1;
+          const grupoIdx = Math.floor((idxGlobal / totalMudasCalc) * 4);
+          const grupo = grupos[Math.min(grupoIdx, 3)];
+          const isSentinela = sentinelasPosicoes.has(planta);
+
           mudas.push({
             talhao_id: talhao.id,
             codigo,
@@ -141,6 +156,8 @@ export default function CadastroTalhaoPage() {
             planta_na_linha: planta,
             status: 'ativa',
             data_plantio: form.data_plantio,
+            grupo_observacao: grupo,
+            is_sentinela: isSentinela,
           });
           contador++;
         }
@@ -349,17 +366,34 @@ export default function CadastroTalhaoPage() {
                   </p>
                 </div>
 
-                {totalMudas > 0 && (
-                  <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3">
-                    <p className="text-sm font-semibold text-emerald-800">
-                      {totalMudas.toLocaleString('pt-BR')} mudas serão criadas
-                    </p>
-                    <p className="text-xs text-emerald-600 mt-0.5">
-                      {mudaConfig.prefixo}0001 até {mudaConfig.prefixo}{String(totalMudas).padStart(4, '0')}
-                      {' · '}{mudaConfig.num_linhas} linhas × {mudaConfig.plantas_por_linha} plantas
-                    </p>
-                  </div>
-                )}
+                {totalMudas > 0 && (() => {
+                  const linhas = parseInt(mudaConfig.num_linhas) || 0;
+                  const porLinha = parseInt(mudaConfig.plantas_por_linha) || 0;
+                  // 3 sentinelas por linha (início, meio, fim)
+                  const totalSentinelas = linhas * (porLinha >= 3 ? 3 : porLinha >= 2 ? 2 : 1);
+                  const porGrupo = Math.floor(totalMudas / 4);
+                  return (
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 space-y-1.5">
+                      <p className="text-sm font-semibold text-emerald-800">
+                        {totalMudas.toLocaleString('pt-BR')} mudas serão criadas
+                      </p>
+                      <p className="text-xs text-emerald-600">
+                        {mudaConfig.prefixo}0001 até {mudaConfig.prefixo}{String(totalMudas).padStart(4, '0')}
+                        {' · '}{mudaConfig.num_linhas} linhas × {mudaConfig.plantas_por_linha} plantas
+                      </p>
+                      <div className="flex gap-2 flex-wrap pt-0.5">
+                        {['A','B','C','D'].map(g => (
+                          <span key={g} className="text-[11px] bg-white border border-emerald-200 rounded px-1.5 py-0.5 text-emerald-700 font-medium">
+                            Grupo {g}: ~{porGrupo}
+                          </span>
+                        ))}
+                        <span className="text-[11px] bg-yellow-50 border border-yellow-200 rounded px-1.5 py-0.5 text-yellow-700 font-medium">
+                          ★ Sentinelas: {totalSentinelas}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
 

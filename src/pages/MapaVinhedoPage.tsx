@@ -1,74 +1,91 @@
+import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useMudasGrid, useMudasStats, MudaStatus } from '@/hooks/useMudas';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
-import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-const statusDisplayMap: Record<MudaStatus, string> = {
-  ativa: 'Ativa',
-  atencao: 'Atenção',
-  falha: 'Falha',
+const STATUS_COLOR: Record<MudaStatus, string> = {
+  ativa:       'bg-emerald-500',
+  atencao:     'bg-amber-400',
+  falha:       'bg-red-500',
+  substituida: 'bg-slate-400',
+};
+
+const STATUS_LABEL: Record<MudaStatus, string> = {
+  ativa:       'Ativa',
+  atencao:     'Atenção',
+  falha:       'Falha',
   substituida: 'Substituída',
 };
+
+const ZOOM_SIZES = [
+  { label: 'XS', cell: 6,  showLabel: false },
+  { label: 'S',  cell: 10, showLabel: false },
+  { label: 'M',  cell: 16, showLabel: false },
+  { label: 'L',  cell: 24, showLabel: true  },
+];
 
 export default function MapaVinhedoPage() {
   const navigate = useNavigate();
   const { data: gridData, isLoading: gridLoading } = useMudasGrid();
   const { data: stats, isLoading: statsLoading } = useMudasStats();
+  const [zoomIdx, setZoomIdx] = useState(1);
+  const [tooltip, setTooltip] = useState<{ codigo: string; status: string; linha: number; planta: number } | null>(null);
 
-  const getGridCellClass = (status: MudaStatus | null) => {
-    switch (status) {
-      case 'ativa':
-        return 'vineyard-grid-active';
-      case 'atencao':
-        return 'vineyard-grid-attention';
-      case 'falha':
-        return 'vineyard-grid-failure';
-      case 'substituida':
-        return 'bg-muted text-muted-foreground';
-      default:
-        return 'vineyard-grid-active';
-    }
-  };
+  const zoom = ZOOM_SIZES[zoomIdx];
 
   return (
     <MainLayout>
-      <div className="p-8">
+      <div className="p-6 space-y-6">
+
         {/* Header */}
-        <div className="mb-8 animate-fade-in">
-          <h1 className="font-display text-3xl font-bold text-foreground mb-2">
-            Mapa do Vinhedo
-          </h1>
-          <p className="text-muted-foreground">
-            Visualização espacial do talhão - Clique em uma muda para ver detalhes
+        <div>
+          <h1 className="font-display text-3xl font-bold text-foreground">Mapa do Vinhedo</h1>
+          <p className="text-muted-foreground mt-1">
+            Visualização espacial do talhão · clique numa muda para ver detalhes
           </p>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap gap-6 mb-8 animate-fade-in" style={{ animationDelay: '100ms' }}>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded vineyard-grid-active" />
-            <span className="text-sm text-muted-foreground">Ativa</span>
+        {/* Legenda + Zoom */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-4">
+            {(Object.keys(STATUS_COLOR) as MudaStatus[]).map(s => (
+              <div key={s} className="flex items-center gap-1.5">
+                <div className={`w-3 h-3 rounded-sm ${STATUS_COLOR[s]}`} />
+                <span className="text-sm text-muted-foreground">{STATUS_LABEL[s]}</span>
+              </div>
+            ))}
           </div>
+
+          {/* Controles de zoom */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded vineyard-grid-attention" />
-            <span className="text-sm text-muted-foreground">Atenção</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded vineyard-grid-failure" />
-            <span className="text-sm text-muted-foreground">Falha</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-muted" />
-            <span className="text-sm text-muted-foreground">Substituída</span>
+            <span className="text-xs text-muted-foreground">Zoom</span>
+            <Button
+              variant="outline" size="icon"
+              className="h-7 w-7"
+              disabled={zoomIdx === 0}
+              onClick={() => setZoomIdx(i => i - 1)}
+            >
+              <ZoomOut size={14} />
+            </Button>
+            <span className="text-xs font-medium w-6 text-center">{zoom.label}</span>
+            <Button
+              variant="outline" size="icon"
+              className="h-7 w-7"
+              disabled={zoomIdx === ZOOM_SIZES.length - 1}
+              onClick={() => setZoomIdx(i => i + 1)}
+            >
+              <ZoomIn size={14} />
+            </Button>
           </div>
         </div>
 
-        {/* Map Grid */}
-        <Card className="animate-fade-in" style={{ animationDelay: '200ms' }}>
-          <CardHeader>
-            <CardTitle className="font-display">Talhão</CardTitle>
+        {/* Grid */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="font-display text-base">Talhão</CardTitle>
           </CardHeader>
           <CardContent>
             {gridLoading ? (
@@ -76,65 +93,66 @@ export default function MapaVinhedoPage() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             ) : gridData && gridData.maxLinha > 0 ? (
-              <div className="overflow-x-auto">
-                <div className="min-w-[600px]">
-                  {/* Column Headers */}
-                  <div className="flex gap-2 mb-2 ml-16">
-                    {Array.from({ length: gridData.maxPlanta }, (_, i) => (
-                      <div
-                        key={i}
-                        className="w-16 h-8 flex items-center justify-center text-xs font-medium text-muted-foreground"
-                      >
-                        P{String(i + 1).padStart(2, '0')}
-                      </div>
-                    ))}
+              <div className="overflow-auto">
+                <div style={{ minWidth: 'max-content' }}>
+
+                  {/* Header de plantas — mostra a cada 10 para não poluir */}
+                  <div className="flex mb-1" style={{ paddingLeft: 40 }}>
+                    {Array.from({ length: gridData.maxPlanta }, (_, i) => {
+                      const p = i + 1;
+                      const show = p === 1 || p % 10 === 0 || p === gridData.maxPlanta;
+                      return (
+                        <div
+                          key={i}
+                          style={{ width: zoom.cell, flexShrink: 0 }}
+                          className="flex items-center justify-center"
+                        >
+                          {show && (
+                            <span className="text-[9px] text-muted-foreground" style={{ fontSize: 9 }}>
+                              {p}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
-                  {/* Rows */}
-                  {Array.from({ length: gridData.maxLinha }, (_, linhaIndex) => {
-                    const linha = linhaIndex + 1;
+                  {/* Linhas */}
+                  {Array.from({ length: gridData.maxLinha }, (_, linhaIdx) => {
+                    const linha = linhaIdx + 1;
                     const mudasLinha = gridData.grid[linha] || [];
-                    
+
                     return (
-                      <div key={linhaIndex} className="flex gap-2 mb-2">
-                        {/* Row Header */}
-                        <div className="w-14 h-16 flex items-center justify-center text-xs font-medium text-muted-foreground">
-                          L{String(linha).padStart(2, '0')}
+                      <div key={linhaIdx} className="flex items-center mb-0.5">
+                        {/* Label da linha */}
+                        <div
+                          className="flex items-center justify-end pr-1.5 flex-shrink-0 text-[10px] text-muted-foreground"
+                          style={{ width: 40 }}
+                        >
+                          L{linha}
                         </div>
 
-                        {/* Cells */}
-                        {Array.from({ length: gridData.maxPlanta }, (_, plantaIndex) => {
-                          const planta = plantaIndex + 1;
+                        {/* Células */}
+                        {Array.from({ length: gridData.maxPlanta }, (_, plantaIdx) => {
+                          const planta = plantaIdx + 1;
                           const muda = mudasLinha.find(m => m.planta_na_linha === planta);
-                          
-                          if (!muda) {
-                            return (
-                              <div
-                                key={plantaIndex}
-                                className="w-16 h-16 rounded border border-dashed border-border flex items-center justify-center text-xs text-muted-foreground"
-                              >
-                                -
-                              </div>
-                            );
-                          }
+                          const status = (muda?.status as MudaStatus) ?? 'ativa';
+                          const colorClass = muda ? STATUS_COLOR[status] : 'bg-muted/30';
 
                           return (
                             <div
-                              key={plantaIndex}
-                              className={cn(
-                                'vineyard-grid-cell w-16 h-16',
-                                getGridCellClass(muda.status)
-                              )}
-                              onClick={() => navigate(`/mudas/${muda.id}`)}
-                              title={`${muda.codigo} - ${statusDisplayMap[muda.status || 'ativa']}`}
-                            >
-                              <div className="text-center">
-                                <div className="font-semibold">{muda.codigo.replace('M', '')}</div>
-                                <div className="text-[10px] opacity-75">
-                                  {statusDisplayMap[muda.status || 'ativa']}
-                                </div>
-                              </div>
-                            </div>
+                              key={plantaIdx}
+                              style={{ width: zoom.cell, height: zoom.cell, flexShrink: 0 }}
+                              className={`${colorClass} cursor-pointer transition-opacity hover:opacity-70 rounded-[1px]`}
+                              onClick={() => muda && navigate(`/mudas/${muda.id}`)}
+                              onMouseEnter={() => muda && setTooltip({
+                                codigo: muda.codigo,
+                                status: STATUS_LABEL[status],
+                                linha,
+                                planta,
+                              })}
+                              onMouseLeave={() => setTooltip(null)}
+                            />
                           );
                         })}
                       </div>
@@ -144,47 +162,45 @@ export default function MapaVinhedoPage() {
               </div>
             ) : (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">Nenhuma muda cadastrada no sistema.</p>
+                <p className="text-muted-foreground">Nenhuma muda cadastrada.</p>
               </div>
             )}
 
-            {/* Info */}
+            {/* Tooltip */}
+            {tooltip && (
+              <div className="mt-3 px-3 py-2 rounded-lg bg-muted text-sm flex gap-4">
+                <span className="font-medium text-foreground">{tooltip.codigo}</span>
+                <span className="text-muted-foreground">L{tooltip.linha} · P{tooltip.planta}</span>
+                <span className="text-muted-foreground">{tooltip.status}</span>
+              </div>
+            )}
+
+            {/* Stats */}
             {stats && (
-              <div className="mt-8 pt-6 border-t border-border">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                  <div>
-                    <p className="text-2xl font-bold text-foreground">
-                      {statsLoading ? '-' : stats.total}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Total</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-status-active">
-                      {statsLoading ? '-' : stats.ativas}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Ativas</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-status-attention">
-                      {statsLoading ? '-' : stats.atencao}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Atenção</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-status-failure">
-                      {statsLoading ? '-' : stats.falha}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Falhas</p>
-                  </div>
+              <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold">{statsLoading ? '-' : stats.total}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-emerald-600">{statsLoading ? '-' : stats.ativas}</p>
+                  <p className="text-xs text-muted-foreground">Ativas</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-amber-600">{statsLoading ? '-' : stats.atencao}</p>
+                  <p className="text-xs text-muted-foreground">Atenção</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-red-600">{statsLoading ? '-' : stats.falha}</p>
+                  <p className="text-xs text-muted-foreground">Falhas</p>
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Note */}
-        <p className="text-sm text-muted-foreground mt-6">
-          📌 Este mapa é uma representação conceitual do vinhedo, não geográfica.
+        <p className="text-sm text-muted-foreground">
+          📌 Representação conceitual do vinhedo, não geográfica.
         </p>
       </div>
     </MainLayout>
