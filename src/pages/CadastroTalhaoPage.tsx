@@ -134,20 +134,38 @@ export default function CadastroTalhaoPage() {
       const totalMudasCalc = numLinhas * plantasPorLinha;
       const grupos = ['A', 'B', 'C', 'D'] as const;
 
-      // Pré-calcula os índices globais de cada muda (0-based) para NTILE(4)
-      // e as sentinelas por linha (primeira, meio, última)
-      for (let linha = 1; linha <= numLinhas; linha++) {
-        // Sentinelas desta linha: primeira, meio e última planta
-        const meioPlanta = Math.ceil(plantasPorLinha / 2);
-        const sentinelasPosicoes = new Set([1, meioPlanta, plantasPorLinha]);
+      // Calcula número de sentinelas proporcional ao tamanho da linha
+      function calcNumSentinelas(total: number): number {
+        if (total <= 50)  return 3;
+        if (total <= 100) return 4;
+        if (total <= 150) return 5;
+        if (total <= 200) return 6;
+        return Math.ceil(total / 40);
+      }
 
+      // Distribui sentinelas em intervalos iguais ao longo da linha
+      function calcPosicoesSentinelas(total: number): Set<number> {
+        const n = calcNumSentinelas(total);
+        const pos = new Set<number>();
+        pos.add(1);
+        pos.add(total);
+        if (n > 2) {
+          const intervalo = (total - 1) / (n - 1);
+          for (let i = 1; i < n - 1; i++) {
+            pos.add(Math.round(1 + i * intervalo));
+          }
+        }
+        return pos;
+      }
+
+      const sentinelasPosicoes = calcPosicoesSentinelas(plantasPorLinha);
+
+      for (let linha = 1; linha <= numLinhas; linha++) {
         for (let planta = 1; planta <= plantasPorLinha; planta++) {
           const codigo = `${mudaConfig.prefixo}${String(contador).padStart(4, '0')}`;
-          // índice global 0-based para NTILE(4)
           const idxGlobal = contador - 1;
           const grupoIdx = Math.floor((idxGlobal / totalMudasCalc) * 4);
           const grupo = grupos[Math.min(grupoIdx, 3)];
-          const isSentinela = sentinelasPosicoes.has(planta);
 
           mudas.push({
             talhao_id: talhao.id,
@@ -157,7 +175,7 @@ export default function CadastroTalhaoPage() {
             status: 'ativa',
             data_plantio: form.data_plantio,
             grupo_observacao: grupo,
-            is_sentinela: isSentinela,
+            is_sentinela: sentinelasPosicoes.has(planta),
           });
           contador++;
         }
@@ -370,7 +388,8 @@ export default function CadastroTalhaoPage() {
                   const linhas = parseInt(mudaConfig.num_linhas) || 0;
                   const porLinha = parseInt(mudaConfig.plantas_por_linha) || 0;
                   // 3 sentinelas por linha (início, meio, fim)
-                  const totalSentinelas = linhas * (porLinha >= 3 ? 3 : porLinha >= 2 ? 2 : 1);
+                  const nSent = porLinha <= 50 ? 3 : porLinha <= 100 ? 4 : porLinha <= 150 ? 5 : porLinha <= 200 ? 6 : Math.ceil(porLinha / 40);
+                  const totalSentinelas = linhas * nSent;
                   const porGrupo = Math.floor(totalMudas / 4);
                   return (
                     <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 space-y-1.5">
