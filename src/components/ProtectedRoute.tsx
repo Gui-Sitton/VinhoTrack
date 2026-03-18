@@ -2,10 +2,27 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTalhoes } from '@/hooks/useMudas';
 import { Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+
+function useTalhoesCondicional(enabled: boolean) {
+  return useQuery({
+    queryKey: ['talhoes'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('talhoes')
+        .select('id')
+        .order('created_at');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled, // só roda se autenticado
+  });
+}
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
-  const { data: talhoes, isLoading: talhoesLoading } = useTalhoes();
+  const { data: talhoes, isLoading: talhoesLoading } = useTalhoesCondicional(!!user && !authLoading);
 
   // 1. Aguarda autenticação resolver
   if (authLoading) {
@@ -22,7 +39,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // 3. Autenticado mas talhões ainda carregando → aguarda
-  if (talhoesLoading) {
+  if (talhoesLoading || talhoes === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -31,7 +48,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   // 4. Autenticado e sem talhão → setup
-  if (talhoes !== undefined && talhoes.length === 0) {
+  if (talhoes.length === 0) {
     return <Navigate to="/setup" replace />;
   }
 
