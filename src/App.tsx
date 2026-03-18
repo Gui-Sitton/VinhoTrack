@@ -43,7 +43,6 @@ const App = () => (
             <Route path="/relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
             <Route path="/clima" element={<ProtectedRoute><ClimaPage /></ProtectedRoute>} />
             <Route path="/referencias-fenologicas" element={<ProtectedRoute><ReferenciasFenologicasPage /></ProtectedRoute>} />
-            <Route path="/setup" element={<CadastroTalhaoPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
