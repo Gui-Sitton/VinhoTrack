@@ -1,4 +1,4 @@
-import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets, Droplet, LogOut, BookOpen, Cloud, Bug } from 'lucide-react';
+import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets, Droplet, LogOut, Cloud, Bug } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
