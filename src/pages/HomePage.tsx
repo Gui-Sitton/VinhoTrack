@@ -2,6 +2,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { useMudasStats, useTalhoes } from '@/hooks/useMudas';
 import { Grape, TrendingUp, AlertTriangle, XCircle, Loader2, Thermometer, Droplets, Leaf, CloudRain, ClipboardList, Sprout, Bug } from 'lucide-react';
+import { RiscoFungicoCard } from '@/components/RiscoFungicoCard';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -189,36 +190,12 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* ── Alerta de doença ── */}
-        {temAlertaDoenca && (
-          <button
-            onClick={() => navigate('/ocorrencias-fungicas')}
-            className="w-full text-left animate-fade-in"
-          >
-            <Card className="border-red-300 bg-red-50">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
-                    <Bug className="w-4 h-4 text-red-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-red-800">
-                      {alertasDoenca!.length === 1
-                        ? 'Ocorrência fúngica nos últimos 14 dias'
-                        : `${alertasDoenca!.length} ocorrências fúngicas nos últimos 14 dias`}
-                    </p>
-                    <p className="text-xs text-red-600 mt-0.5">
-                      Última: {ultimaDoenca?.agente === 'mildio' ? 'Míldio' : 'Oídio'}
-                      {ultimaDoenca?.severidade_descricao && ` — ${ultimaDoenca.severidade_descricao}`}
-                      {ultimaDoenca?.linha && ` · Linha ${ultimaDoenca.linha}`}
-                    </p>
-                  </div>
-                  <span className="text-xs text-red-500 flex-shrink-0">Ver →</span>
-                </div>
-              </CardContent>
-            </Card>
-          </button>
-        )}
+
+
+        {/* ── Risco Fúngico ── */}
+        <div className="animate-fade-in">
+          <RiscoFungicoCard talhaoId={talhaoId} />
+        </div>
 
         {/* ── Clima hoje ── */}
         <section className="animate-fade-in" style={{ animationDelay: '50ms' }}>

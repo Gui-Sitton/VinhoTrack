@@ -14,6 +14,7 @@ import {
   ArrowLeft, Save, Loader2, AlertTriangle,
   Calendar, Layers, Leaf, CheckCircle2, Plus, Trash2
 } from 'lucide-react';
+import { RiscoFungicoCard } from '@/components/RiscoFungicoCard';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -210,6 +211,9 @@ export default function OcorrenciaFungicaPage() {
             </Button>
           </div>
         </div>
+
+        {/* ── Card de Risco ── */}
+        <RiscoFungicoCard talhaoId={talhao?.id} />
 
         {/* ── FORMULÁRIO ── */}
         {etapa === 'form' && (
