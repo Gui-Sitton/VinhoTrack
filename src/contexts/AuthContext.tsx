@@ -19,31 +19,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setIsLoading(false);
-      }
-    );
-
-    // THEN check for existing session
+    // Primeiro verifica a sessão existente — só depois de resolver é que
+    // marcamos isLoading: false para evitar redirecionamentos prematuros
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
     });
 
+    // Listener para mudanças subsequentes (login, logout, refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        // Ignora o evento inicial — já foi tratado pelo getSession acima
+        if (event === 'INITIAL_SESSION') return;
+        setSession(session);
+        setUser(session?.user ?? null);
+      }
+    );
+
     return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      return { error };
-    }
-    return { error: null };
+    return { error: error ?? null };
   };
 
   const signUp = async (email: string, password: string) => {
@@ -53,10 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: { emailRedirectTo: redirectUrl }
     });
-    if (error) {
-      return { error };
-    }
-    return { error: null };
+    return { error: error ?? null };
   };
 
   const signOut = async () => {
