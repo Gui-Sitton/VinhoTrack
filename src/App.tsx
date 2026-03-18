@@ -20,6 +20,7 @@ import ClimaPage from "./pages/ClimaPage.tsx";
 import SessaoObservacaoPage from '@/pages/SessaoObservacaoPage.tsx';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import CadastroTalhaoPage from './pages/CadastroTalhaoPage.tsx';
+import OcorrenciaFungicaPage from './pages/OcorrenciaFungicaPage.tsx';
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -43,6 +44,8 @@ const App = () => (
             <Route path="/relatorios" element={<ProtectedRoute><RelatoriosPage /></ProtectedRoute>} />
             <Route path="/clima" element={<ProtectedRoute><ClimaPage /></ProtectedRoute>} />
             <Route path="/referencias-fenologicas" element={<ProtectedRoute><ReferenciasFenologicasPage /></ProtectedRoute>} />
+            <Route path="/ocorrencias-fungicas" element={<ProtectedRoute><OcorrenciaFungicaPage /></ProtectedRoute>} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
