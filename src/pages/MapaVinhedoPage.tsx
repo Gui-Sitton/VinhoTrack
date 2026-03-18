@@ -177,27 +177,29 @@ export default function MapaVinhedoPage() {
                         <span className="text-xs font-bold text-foreground">L{linha}</span>
                       </div>
 
-                      {/* Barra de status */}
+                      {/* Barra de status proporcional por posição real */}
                       <div className="flex-1">
-                        <div className="flex h-4 rounded-full overflow-hidden gap-px">
-                          {s.ativas > 0 && (
-                            <div
-                              className="bg-emerald-500 transition-all"
-                              style={{ width: `${(s.ativas / s.total) * 100}%` }}
-                            />
-                          )}
-                          {s.atencao > 0 && (
-                            <div
-                              className="bg-amber-400 transition-all"
-                              style={{ width: `${(s.atencao / s.total) * 100}%` }}
-                            />
-                          )}
-                          {s.falhas > 0 && (
-                            <div
-                              className="bg-red-500 transition-all"
-                              style={{ width: `${(s.falhas / s.total) * 100}%` }}
-                            />
-                          )}
+                        <div className="flex h-4 rounded-full overflow-hidden">
+                          {(() => {
+                            const mudasLinha = gridData?.grid[linha] ?? [];
+                            if (mudasLinha.length === 0) return (
+                              <div className="bg-emerald-500 w-full" />
+                            );
+                            const maxPlanta = Math.max(...mudasLinha.map(m => m.planta_na_linha));
+                            return mudasLinha.map((m, idx) => {
+                              const prev = idx === 0 ? 0 : mudasLinha[idx - 1].planta_na_linha;
+                              const gap = m.planta_na_linha - prev - 1;
+                              const color = m.status === 'falha' ? 'bg-red-500'
+                                : m.status === 'atencao' ? 'bg-amber-400'
+                                : m.status === 'substituida' ? 'bg-slate-400'
+                                : 'bg-emerald-500';
+                              return (
+                                <div key={m.id} className="flex" style={{ width: `${(1 / maxPlanta) * 100}%` }}>
+                                  <div className={`w-full ${color}`} />
+                                </div>
+                              );
+                            });
+                          })()}
                         </div>
                         <div className="flex gap-3 mt-1">
                           <span className="text-[10px] text-muted-foreground">{s.total} mudas</span>
