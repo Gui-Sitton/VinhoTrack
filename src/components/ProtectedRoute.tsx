@@ -16,7 +16,10 @@ function useTalhoesCondicional(enabled: boolean) {
       if (error) throw error;
       return data || [];
     },
-    enabled, // só roda se autenticado
+    enabled,
+    staleTime: 0,          // sempre considera stale
+    gcTime: 0,             // não guarda em cache
+    refetchOnMount: true,  // sempre rebusca ao montar
   });
 }
 
