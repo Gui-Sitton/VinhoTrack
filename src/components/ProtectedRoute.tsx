@@ -1,6 +1,5 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTalhoes } from '@/hooks/useMudas';
 import { Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,15 +16,17 @@ function useTalhoesCondicional(enabled: boolean) {
       return data || [];
     },
     enabled,
-    staleTime: 0,          // sempre considera stale
-    gcTime: 0,             // não guarda em cache
-    refetchOnMount: true,  // sempre rebusca ao montar
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: true,
   });
 }
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
   const { data: talhoes, isLoading: talhoesLoading } = useTalhoesCondicional(!!user && !authLoading);
+
+  console.log('ProtectedRoute:', { authLoading, user: !!user, talhoesLoading, talhoes });
 
   // 1. Aguarda autenticação resolver
   if (authLoading) {
