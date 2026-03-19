@@ -1,10 +1,12 @@
 import { useTalhaoContext } from '@/contexts/TalhaoContext';
-import { ChevronDown, MapPin } from 'lucide-react';
+import { ChevronDown, MapPin, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 export function TalhaoSelector() {
   const { talhoes, talhaoAtivo, setTalhaoAtivo, temMultiplosTalhoes } = useTalhaoContext();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -21,17 +23,26 @@ export function TalhaoSelector() {
 
   if (!talhaoAtivo) return null;
 
-  // Com apenas um talhão, mostra label simples sem dropdown
+  // Com apenas um talhão, mostra label simples + botão adicionar
   if (!temMultiplosTalhoes) {
     return (
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50">
-        <MapPin size={13} className="text-muted-foreground flex-shrink-0" />
-        <span className="text-sm font-medium text-foreground">
-          {talhaoAtivo.codigo}{talhaoAtivo.nome ? ` — ${talhaoAtivo.nome}` : ''}
-        </span>
-        <span className="text-xs text-muted-foreground hidden sm:inline">
-          · {talhaoAtivo.variedade}
-        </span>
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50">
+          <MapPin size={13} className="text-muted-foreground flex-shrink-0" />
+          <span className="text-sm font-medium text-foreground">
+            {talhaoAtivo.codigo}{talhaoAtivo.nome ? ` — ${talhaoAtivo.nome}` : ''}
+          </span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            · {talhaoAtivo.variedade}
+          </span>
+        </div>
+        <button
+          onClick={() => navigate('/setup')}
+          title="Adicionar novo talhão"
+          className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
+        >
+          <Plus size={15} />
+        </button>
       </div>
     );
   }
@@ -91,6 +102,15 @@ export function TalhaoSelector() {
                 </div>
               </button>
             ))}
+          </div>
+          <div className="border-t border-border py-1">
+            <button
+              onClick={() => { navigate('/setup'); setOpen(false); }}
+              className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-muted transition-colors text-sm text-muted-foreground hover:text-primary"
+            >
+              <Plus size={14} />
+              Adicionar novo talhão
+            </button>
           </div>
         </div>
       )}
