@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { TalhaoSelector } from '@/components/TalhaoSelector';
+import { SyncBanner } from '@/components/SyncBanner';
 import { useTalhaoContext } from '@/contexts/TalhaoContext';
 
 interface MainLayoutProps {
@@ -26,6 +27,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         {/* Espaço no mobile para a topbar da sidebar */}
         <div className="md:hidden h-14" />
         <TopBar />
+        <SyncBanner />
         <div className="flex-1">
           {children}
         </div>

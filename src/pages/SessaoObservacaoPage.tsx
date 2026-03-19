@@ -15,6 +15,14 @@ import {
 import { differenceInDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useTalhaoContext } from '@/contexts/TalhaoContext';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import {
+  cachearMudasGrupo,
+  getMudasCache,
+  enfileirarObservacao,
+  MudaCache,
+} from '@/lib/useOfflineStorage';
+import { WifiOff } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -135,6 +143,9 @@ export default function SessaoObservacaoPage() {
 
   // ── Talhão via contexto ──────────────────────────────────────────────────
   const { talhaoAtivo } = useTalhaoContext();
+  const online = useOnlineStatus();
+  const [modoOffline, setModoOffline] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState<string | null>(null);
 
   useEffect(() => {
     if (!talhaoAtivo) return;
@@ -226,6 +237,21 @@ export default function SessaoObservacaoPage() {
       query.filter('is_sentinela', 'eq', false).eq('grupo_observacao', grupo);
     }
 
+    // Se offline, tenta usar cache local
+    if (!navigator.onLine) {
+      const cached = await getMudasCache(talhaoId!, grupo);
+      if (cached) {
+        setModoOffline(true);
+        setCacheInfo(cached.salvo_em);
+        setMudas(cached.mudas as MudaInfo[]);
+      } else {
+        setModoOffline(true);
+        setCacheInfo(null);
+      }
+      setLoadingMudas(false);
+      return;
+    }
+
     const { data } = await query;
     if (!data) { setLoadingMudas(false); return; }
 
@@ -255,6 +281,9 @@ export default function SessaoObservacaoPage() {
       };
     });
 
+    // Salva no cache para uso offline futuro
+    await cachearMudasGrupo(talhaoId!, grupo, processadas as MudaCache[]);
+    setModoOffline(false);
     setMudas(processadas);
     setLoadingMudas(false);
   }, [talhaoId]);
@@ -286,7 +315,8 @@ export default function SessaoObservacaoPage() {
       return;
     }
     setSalvando(true);
-    const { error } = await supabase.from('observacoes_mudas' as any).insert(({
+
+    const payload = {
       muda_id: muda.id,
       data: new Date().toISOString().split('T')[0],
       fase_fenologica: formData.fase_fenologica || 'crescimento_vegetativo',
@@ -297,7 +327,29 @@ export default function SessaoObservacaoPage() {
       atingiu_arame: formData.atingiu_arame,
       necessita_tutoramento: formData.necessita_tutoramento,
       observacoes: formData.observacoes || null,
-    } as any));
+    };
+
+    if (!navigator.onLine) {
+      // Salva localmente na fila offline
+      try {
+        await enfileirarObservacao({
+          id: crypto.randomUUID(),
+          muda_codigo: muda.codigo,
+          criado_em: new Date().toISOString(),
+          ...payload,
+        });
+        setSalvando(false);
+        setConcluidas(prev => new Set([...prev, muda.id]));
+        toast({ title: `✓ ${muda.codigo} salva offline`, description: 'Será sincronizada quando houver conexão' });
+        avancar();
+      } catch {
+        setSalvando(false);
+        toast({ title: 'Erro ao salvar offline', variant: 'destructive' });
+      }
+      return;
+    }
+
+    const { error } = await supabase.from('observacoes_mudas' as any).insert((payload as any));
     setSalvando(false);
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
@@ -341,7 +393,14 @@ export default function SessaoObservacaoPage() {
       <MainLayout>
         <div className="p-6 space-y-6">
           <div>
-            <h1 className="font-display text-3xl font-bold text-foreground">Sessão de Observação</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-3xl font-bold text-foreground">Sessão de Observação</h1>
+              {!online && (
+                <span className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                  <WifiOff size={11} /> Offline
+                </span>
+              )}
+            </div>
             <p className="text-muted-foreground mt-1">Selecione o grupo de hoje para iniciar a coleta</p>
           </div>
 
@@ -481,6 +540,27 @@ export default function SessaoObservacaoPage() {
               <p className="text-muted-foreground text-sm">{mudas.length} mudas · {totalPendentes} pendentes</p>
             </div>
           </div>
+
+          {/* Aviso de modo offline com cache */}
+          {modoOffline && (
+            <div className={`rounded-lg border px-3 py-2.5 flex items-center gap-2 ${
+              cacheInfo ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
+            }`}>
+              <WifiOff size={14} className={cacheInfo ? 'text-amber-600' : 'text-red-600'} />
+              <div>
+                {cacheInfo ? (
+                  <>
+                    <p className="text-xs font-semibold text-amber-800">Modo offline — dados em cache</p>
+                    <p className="text-[10px] text-amber-700">
+                      Salvo em {new Date(cacheInfo).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs font-semibold text-red-800">Sem conexão e sem cache disponível</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Progresso */}
           {progresso > 0 && (
