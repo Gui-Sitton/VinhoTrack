@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useTalhoes } from '@/hooks/useMudas';
+import { useTalhaoContext } from '@/contexts/TalhaoContext';
 import {
   ArrowLeft, Save, Loader2, AlertTriangle,
   Calendar, Layers, Leaf, CheckCircle2, Plus, Trash2
@@ -89,8 +89,7 @@ export default function OcorrenciaFungicaPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { data: talhoes } = useTalhoes();
-  const talhao = talhoes?.[0];
+  const { talhaoAtivo: talhao } = useTalhaoContext();
 
   const { data: historico, isLoading: loadingHistorico } = useOcorrenciasFungicas(talhao?.id);
 

@@ -3,7 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { useMudasGrid, useMudasStats, MudaStatus } from '@/hooks/useMudas';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useTalhoes } from '@/hooks/useMudas';
+import { useTalhaoContext } from '@/contexts/TalhaoContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, ChevronRight, ChevronLeft, Star } from 'lucide-react';
@@ -81,8 +81,8 @@ export default function MapaVinhedoPage() {
   const navigate = useNavigate();
   const { data: gridData, isLoading: gridLoading } = useMudasGrid();
   const { data: stats, isLoading: statsLoading } = useMudasStats();
-  const { data: talhoes } = useTalhoes();
-  const talhaoId = talhoes?.[0]?.id;
+  const { talhaoAtivo } = useTalhaoContext();
+  const talhaoId = talhaoAtivo?.id;
 
   const [linhaSelecionada, setLinhaSelecionada] = useState<number | null>(null);
   const [mudaHover, setMudaHover] = useState<MudaDetalhada | null>(null);

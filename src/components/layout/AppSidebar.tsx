@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets, Droplet, LogOut, BookOpen, Cloud, Bug, Menu, X } from 'lucide-react';
+import { Grape, Map, List, PlusCircle, Home, FileBarChart, Droplets, Droplet, LogOut, Cloud, Bug, Menu, X } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMudasStats, useTalhoes } from '@/hooks/useMudas';
+import { useTalhaoContext } from '@/contexts/TalhaoContext';
 import { Button } from '@/components/ui/button';
 
 const menuItems = [

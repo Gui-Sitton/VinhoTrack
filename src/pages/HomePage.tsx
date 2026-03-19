@@ -1,6 +1,7 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
-import { useMudasStats, useTalhoes } from '@/hooks/useMudas';
+import { useMudasStats } from '@/hooks/useMudas';
+import { useTalhaoContext } from '@/contexts/TalhaoContext';
 import { Grape, TrendingUp, AlertTriangle, XCircle, Loader2, Thermometer, Droplets, Leaf, CloudRain, ClipboardList, Sprout, Bug } from 'lucide-react';
 import { RiscoFungicoCard } from '@/components/RiscoFungicoCard';
 import { useNavigate } from 'react-router-dom';
@@ -152,9 +153,8 @@ function useAlertaDoencas(talhaoId?: string) {
 export default function HomePage() {
   const navigate = useNavigate();
   const { data: stats,  isLoading: statsLoading  } = useMudasStats();
-  const { data: talhoes, isLoading: talhoesLoading } = useTalhoes();
+  const { talhaoAtivo: talhao, isLoading: talhoesLoading } = useTalhaoContext();
 
-  const talhao      = talhoes?.[0];
   const talhaoId    = talhao?.id;
   const dataPlantio = talhao?.data_plantio;
 

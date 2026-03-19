@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { differenceInDays } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { useTalhaoContext } from '@/contexts/TalhaoContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,32 +133,26 @@ export default function SessaoObservacaoPage() {
   const [loadingMudas, setLoadingMudas] = useState(false);
   const [talhaoId, setTalhaoId] = useState<string | null>(null);
 
-  // ── Talhão ───────────────────────────────────────────────────────────────
-  useEffect(() => {
-    async function fetchTalhao() {
-      const { data } = await supabase
-        .from('talhoes' as any)
-        .select('id, data_plantio')
-        .limit(1)
-        .single();
-      if (!data) return;
-      const tId = (data as any).id;
-      const dataPlantio = (data as any).data_plantio;
-      setTalhaoId(tId);
+  // ── Talhão via contexto ──────────────────────────────────────────────────
+  const { talhaoAtivo } = useTalhaoContext();
 
-      // Busca GDD acumulado desde o plantio
-      if (dataPlantio) {
-        const { data: climaData } = await supabase
-          .from('clima_diario' as any)
-          .select('graus_dia')
-          .eq('talhao_id', tId)
-          .gte('data', dataPlantio);
-        const total = (climaData ?? []).reduce((acc: number, r: any) => acc + (r.graus_dia ?? 0), 0);
-        setGddAcumulado(Math.round(total));
-      }
+  useEffect(() => {
+    if (!talhaoAtivo) return;
+    setTalhaoId(talhaoAtivo.id);
+
+    // Busca GDD acumulado desde o plantio
+    async function fetchGdd() {
+      if (!talhaoAtivo.data_plantio) return;
+      const { data: climaData } = await supabase
+        .from('clima_diario' as any)
+        .select('graus_dia')
+        .eq('talhao_id', talhaoAtivo.id)
+        .gte('data', talhaoAtivo.data_plantio);
+      const total = (climaData ?? []).reduce((acc: number, r: any) => acc + (r.graus_dia ?? 0), 0);
+      setGddAcumulado(Math.round(total));
     }
-    fetchTalhao();
-  }, []);
+    fetchGdd();
+  }, [talhaoAtivo]);
 
   // ── Stats por grupo ──────────────────────────────────────────────────────
   useEffect(() => {

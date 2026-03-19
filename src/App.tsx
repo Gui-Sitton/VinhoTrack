@@ -20,11 +20,13 @@ import SessaoObservacaoPage from '@/pages/SessaoObservacaoPage.tsx';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import CadastroTalhaoPage from './pages/CadastroTalhaoPage.tsx';
 import OcorrenciaFungicaPage from './pages/OcorrenciaFungicaPage.tsx';
+import { TalhaoProvider } from '@/contexts/TalhaoContext';
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <TalhaoProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -48,6 +50,7 @@ const App = () => (
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
+      </TalhaoProvider>
     </AuthProvider>
   </QueryClientProvider>
 );
