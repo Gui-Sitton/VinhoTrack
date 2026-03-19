@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Grape, Loader2, MapPin, ChevronRight, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import { Grape, Loader2, MapPin, ChevronRight, ChevronLeft, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 
 const VARIEDADES = [
@@ -22,6 +22,8 @@ const PORTA_ENXERTOS = [
 
 export default function CadastroTalhaoPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const modoAdicionar = searchParams.get('modo') === 'adicionar';
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -204,6 +206,19 @@ export default function CadastroTalhaoPage() {
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4 flex items-start justify-center py-8">
       <div className="w-full max-w-lg space-y-6">
 
+        {/* Botão voltar — só aparece no modo adicionar */}
+        {modoAdicionar && (
+          <div className="flex justify-start">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft size={16} />
+              Voltar
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center">
           <div className="flex justify-center mb-4">
@@ -211,7 +226,9 @@ export default function CadastroTalhaoPage() {
               <Grape className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Configure seu talhão</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {modoAdicionar ? 'Novo talhão' : 'Configure seu talhão'}
+          </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             {etapa === 1 ? 'Informações do vinhedo' : 'Grade de mudas'}
           </p>

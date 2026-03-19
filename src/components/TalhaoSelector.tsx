@@ -37,7 +37,7 @@ export function TalhaoSelector() {
           </span>
         </div>
         <button
-          onClick={() => navigate('/setup')}
+          onClick={() => navigate('/setup?modo=adicionar')}
           title="Adicionar novo talhão"
           className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-primary"
         >
@@ -105,7 +105,7 @@ export function TalhaoSelector() {
           </div>
           <div className="border-t border-border py-1">
             <button
-              onClick={() => { navigate('/setup'); setOpen(false); }}
+              onClick={() => { navigate('/setup?modo=adicionar'); setOpen(false); }}
               className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-muted transition-colors text-sm text-muted-foreground hover:text-primary"
             >
               <Plus size={14} />
